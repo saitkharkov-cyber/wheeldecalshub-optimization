@@ -612,3 +612,79 @@ Next:
 2. Fix any remaining critical-only differences.
 3. Only after critical visual parity is complete, design the safe mechanism for loading the remaining non-critical CSS after first interaction.
 4. Do not return to broad JS/defer optimization before that.
+
+
+# CURRENT UPDATE — 2026-10-06, interaction CSS loader stabilized
+
+This section supersedes the older Immediate next task below.
+
+## Category mobile critical CSS status
+
+Critical-only first screen is now visually stable enough for production testing.
+
+Additional fixes completed:
+- product-card border/padding/caption styles restored in critical CSS;
+- yellow product action-button flash removed with critical rules for .grid-style .button-group and .product-thumb .button-group button;
+- mobile logo now has explicit width=1000 height=500 in header_mobile.twig;
+- WorkSans-SemiBold.woff2 is preloaded for product-category;
+- bestin.ttf is preloaded for product-category;
+- Bestin visual font swap seen in Performance trace disappeared after preload.
+
+## Deferred full-CSS architecture
+
+The old sequential interaction loader MUST NOT be restored.
+
+Current working architecture:
+1. Initial render uses critical CSS only.
+2. The eight suppressed original CSS links remain in-place as <template class="wdh-deferred-css"> markers, preserving original cascade order and dynamic {{ style.href }} entries.
+3. After window.load, all deferred CSS files download in parallel as rel=preload/as=style, without being applied.
+4. After the entire CSS batch is ready, the next pointerdown/touchstart/keydown/wheel interaction switches all preloaded links back to their original stylesheet rel/media values in one synchronous pass.
+5. If interaction occurs before the CSS batch is ready, nothing is activated late automatically; the next interaction after ready=true performs activation.
+
+Reason for this design:
+- previous interaction -> download -> late activation produced real counted layout shifts after the recent-input window expired;
+- measured bad shifts were approximately 0.1375 and 0.2197 with hadRecentInput=false;
+- affected nodes included .row, product columns, .col-sm-9, .scroll-fix and .breadcrumbs;
+- with the current background-preload architecture, the large activation shifts still exist visually but are inside hadRecentInput=true;
+- the only measured post-change hadRecentInput=false shift was about 0.00229.
+
+The current loader therefore appears safe for CLS and should not be changed without a concrete regression.
+
+## Font preload findings
+
+WorkSans-SemiBold preload reduced font-related instability, but the persistent Lighthouse CLS remained around 0.094.
+
+bestin.ttf is only about 36,972 bytes and previously started very late in Performance traces. After adding preload, Bestin starts immediately in parallel with the other early resources and the visible Bestin -> fallback/resize -> Bestin transition disappeared.
+
+Do NOT start preloading every remaining font blindly. Lighthouse sometimes mentions WorkSans-Regular.woff2 or ionicons.woff, but the same approximately 0.094 CLS also occurs without them being listed as causes.
+
+## Current PSI baseline after stabilized loader
+
+Three latest successful mobile runs:
+- Run 1: Performance 70, FCP 2.7 s, LCP 5.9 s, TBT 160 ms, CLS 0.094, Speed Index 2.9 s.
+- Run 2: Performance 71, FCP 2.6 s, LCP 5.8 s, TBT 160 ms, CLS 0.094, Speed Index 2.8 s.
+- Run 3: Performance 62, FCP 2.7 s, LCP 5.9 s, TBT 400 ms, CLS 0.095, Speed Index 3.3 s.
+
+PSI remains noisy, especially TBT/performance score, but CLS is very stable around 0.094-0.095.
+
+LCP diagnostics previously showed the first ABARTH product image with fetchpriority=high and approximately:
+- resource load delay: 670 ms;
+- resource load duration: 110 ms;
+- element render delay: 420 ms.
+
+The old theory of a stable multi-second late discovery of the LCP image is NOT supported by the latest traces.
+
+## Current remaining category issue
+
+Lighthouse still attributes approximately 0.094 CLS mainly to:
+#product-category.container.layer-category
+
+However the loader-generated large post-interaction shifts are now excluded from CLS because they occur with hadRecentInput=true.
+
+## Immediate next task
+
+1. Do NOT modify the current deferred-CSS loader unless a reproducible regression appears.
+2. Treat the current category critical/deferred architecture as the working baseline.
+3. Next optimization target is LCP/FCP, not more CSS-loader experimentation.
+4. Investigate the remaining approximately 5.8-5.9 s mobile LCP using concrete trace evidence before making changes.
+5. Broad JS/defer optimization remains postponed because previous dependency analysis showed that mass defer is unsafe on this theme.
