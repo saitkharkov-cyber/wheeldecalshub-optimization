@@ -1,690 +1,385 @@
-# CURRENT STATE
-
-Дата: **05.10.2026**
-
-## Проєкт
-
-Сайт: https://wheeldecalshub.com/  
-CMS: OpenCart 3.0.3.2  
-PHP: 7.3.33  
-Тема: `tt_uren1`
-
-Локальний репозиторій: `D:\Git\wheeldecalshub-optimization`  
-Повна локальна копія сайту: `D:\work\WDH-files\`
-
-## Робочий протокол
-
-- Працювати по одному маленькому безпечному кроку.
-- Після кожного кроку чекати `++` або результат користувача.
-- PowerShell-команди давати **одним фізичним рядком**.
-- Перед змінами існуючих файлів: backup + точна перевірка match/count.
-- Не робити широкі replace без перевірки.
-- UTF-8 без BOM.
-- Не редагувати `storage/modification/` напряму.
-- Постійні зміни повинні переживати **OCMOD Refresh**.
-- Локальні зміни робимо у `D:\work\WDH-files`, потім upload на hosting і OCMOD Refresh.
-- Поточний фокус: CSS architecture / first-screen rendering. Не повертатися без потреби до широкого JS/PHP-header розслідування.
-
-## Baseline Mobile PageSpeed / Lighthouse
-
-| Тип сторінки | Performance | FCP | LCP | TBT | CLS | SI |
-|---|---:|---:|---:|---:|---:|---:|
-| Головна | 44 | 6.8 s | 8.8 s | 0 ms | 0.285 | 6.8 s |
-| Каталог | 35 | 7.4 s | 12.9 s | 0 ms | 0.704 | 7.4 s |
-| Картка товару | 45 | 8.5 s | 9.6 s | 200 ms | 0.194 | 8.5 s |
-
-Baseline-скриншоти збережено в `measurements/baseline/`.
-
-## Каталог — підтверджені результати
-
-### CLS
-
-Основну причину високого CLS локалізовано: товари сервером віддавалися як list, після чого `grid.js` перебудовував їх у grid.
-
-Після server-side initial grid та резервування місця під зображення CLS знижено приблизно з **0.704** до **~0.09**. В одному стабільному PSI-run CLS був **0**.
-
-Поточні класи картки товару:
-
-`product-layout product-grid grid-style col-lg-3 col-md-3 col-sm-3 col-xs-6 product-items`
-
-Для product thumbs:
-
-`width="600" height="600"`
-
-Payment image:
-
-`width="350" height="30"`
-
-### LCP priority
-
-Через:
-
-`system/wdh_category_lcp_priority.ocmod.xml`
-
-першим product images додається:
-
-`fetchpriority="high"`
-
-Поточний LCP element — перша product image ABARTH 500.
-
-## LCP image — важная диагностическая точка
-
-На mobile category LCP стабильно является первая product image:
-
-ABARTH 500 3d car stickers, emblems, decals for wheel center caps replacements
-
-HTML:
-- width="600"
-- height="600"
-- fetchpriority="high"
-
-Пример LCP breakdown:
-- Time to First Byte: 0 ms
-- Resource load delay: 700 ms
-- Resource load duration: 80 ms
-- Element render delay: 370 ms
-
-Важно:
-- этот же LCP image уже неоднократно проверялся;
-- fetchpriority="high" присутствует;
-- Lighthouse больше не сообщает прежнюю проблему late LCP discovery;
-- Resource load delay сильно плавает между PSI-запусками: ранее наблюдалось около 2560 ms, в другом запуске около 700 ms;
-- поэтому нельзя считать поздний discovery доказанной постоянной причиной без серии повторных замеров.
-
-## TTFB / ptmenu
-
-Діагностичними probes у `catalog/controller/product/category.php` встановлено, що дорогим етапом був `ptmenu/position1`.
-
-Виявлено:
-
-- модуль `ptmenu.227`;
-- Vertical Menu 01;
-- menu id `4`;
-- категорії `59/60` з `show_child`;
-- приблизно 154 immediate child links.
-
-Додано кешування custom ptmenu items через:
-
-`system/wdh_ptmenu_cache.ocmod.xml`
-
-Після кешування warm hits `position1` були приблизно **~124–148 ms**. Звичайний TTFB категорії — приблизно **0.97–1.13 s**.
-
-### Невирішене
-
-Cache key враховує store/menu/language/settings, але ще не має надійної invalidation при зміні категорій або структури меню.
-
-## Діагностичні TTFB probes
-
-У `catalog/controller/product/category.php` ще залишаються probes.
-
-Чистий backup:
-
-`catalog/controller/product/category.php.bak-ttfb-20261004`
-
-Перед фінальними вимірами:
-1. відновити clean backup;
-2. OCMOD Refresh;
-3. перевірити функціональність;
-4. тільки потім фінальна PSI-серія.
-
-## Header / mobile
-
-Через:
-
-`system/wdh_mobile_plaza_header_skip.ocmod.xml`
-
-оптимізовано mobile header path. Ефект за probes був близько **~100 ms**.
-
-Після поточної ручної дополіровки critical-only mobile header користувач підтвердив:
-
-**«шапка идеальная»**.
-
-## Newsletter
-
-Через:
-
-`system/wdh_newsletter_inline.ocmod.xml`
-
-прибрано окреме initial завантаження tiny `mail.js`.
-
-Перевірено:
-- `mail.js` окремо не вантажиться;
-- `typeof ptnewsletter === 'object'`.
-
-## Critical CSS — основний файл
-
-`catalog/view/theme/tt_uren1/stylesheet/critical-category-mobile.css`
-
-Critical значно розширений та містить:
-- Bootstrap-used beta foundation;
-- mobile/category overrides;
-- локальні шрифти;
-- inline SVG masks для критичних іконок;
-- header / breadcrumb / sidebar / product-grid first-screen rules.
-
-## Поточний OCMOD CSS-тест
-
-Файл:
-
-`system/wdh_category_critical_css.ocmod.xml`
-
-Поточна тестова версія:
-
-`1.2-test-critical-inline`
-
-На mobile category цей тест:
-1. вставляє весь `critical-category-mobile.css` **inline у `<style>` в `<head>`**;
-2. пригнічує initial завантаження звичайних Bootstrap/theme/icon CSS;
-3. використовується як контрольний експеримент для максимального critical-only first screen.
-
-Це **не фінальна архітектура**, а поточна тестова точка.
-
-## Critical-only контрольний експеримент
-
-Перший critical-only test до повної візуальної дополіровки:
-
-- Performance: **83**
-- FCP: **1988 ms**
-- SI: **2460 ms**
-- LCP: **4351 ms**
-- TBT: **105 ms**
-- CLS: **0.05**
-
-Це довело великий потенціал від повного прибирання некритичних CSS з initial path.
-
-Після дополіровки останній PSI-run:
-
-- Performance: **71**
-- FCP: **2714 ms**
-- SI: **5248 ms**
-- LCP: **5251 ms**
-- TBT: **41 ms**
-- CLS: **0.09**
-
-Один запуск не вважається доказом регресу через шум PSI. Потрібен повторний causal test без змін.
-
-## LCP breakdown — останній PSI
-
-LCP element:
-перша product image ABARTH 500, `600x600`, `fetchpriority="high"`.
-
-Breakdown:
-- Time to First Byte: **0 ms**
-- Resource load delay: **2560 ms**
-- Resource load duration: **40 ms**
-- Element render delay: **180 ms**
-
-Ключова поточна проблема — **дуже пізній старт запиту LCP image**, а не швидкість завантаження картинки чи render delay.
-
-Перед новими змінами потрібно повторити PSI на тому самому стані. Якщо `Resource load delay` знову буде близько **2–2.5 s**, тоді окремо досліджувати, чому браузер пізно починає request LCP image, незважаючи на `fetchpriority="high"`.
-
-## JS — важливий контекст
-
-Lighthouse все ще показує parser/render-blocking JS, зокрема:
-- `bootstrap.min.js`
-- `form_builder/main.js`
-- `swatches/swatches.js`
-- `jquery/jquery-2.1.1.min.js`
-- `javascript/common.js`
-- `form_builder/global.js`
-- `category/grid.js`
-- `ultimatemenu/menu.js`
-
-JS вже окремо досліджувався; простий defer небезпечний через inline calls, що очікують jQuery.
-
-**Не повертатися зараз до широкого JS-рефакторингу**, поки не підтверджена повторюваність LCP delay.
-
-## Bestin
-
-Critical використовує `@font-face` для `Bestin`.
-
-Файл:
-
-`catalog/view/theme/tt_uren1/stylesheet/plaza/bestin.ttf`
-
-Через те, що critical тепер inline, старий відносний URL `plaza/bestin.ttf` був неправильний.
-
-Поточний URL:
-
-`catalog/view/theme/tt_uren1/stylesheet/plaza/bestin.ttf`
-
-Також у critical є:
-
-`h1,h2,h3,h4,h5,h6{font-family:'Bestin';}`
-
-## Work Sans
-
-Google Fonts dependency для first screen замінена локальними WOFF2:
-
-`catalog/view/theme/tt_uren1/fonts/worksans/WorkSans-Regular.woff2`
-
-`catalog/view/theme/tt_uren1/fonts/worksans/WorkSans-SemiBold.woff2`
-
-В critical є `@font-face` для 400 і 600.
-
-Body override:
-
-`body{font-family:'Work Sans',sans-serif;}`
-
-## Critical icons — font icons → SVG masks
-
-Для first screen знайдено реальні glyphs:
-1. hamburger — Ionicons;
-2. search — Ionicons;
-3. settings — Ionicons;
-4. cart — Ionicons;
-5. home — Font Awesome;
-6. filter — Font Awesome;
-7. brand arrow — Glyphicons.
-
-Cart arrow на mobile прихований:
-
-`#cart>.btn:after{content:none!important;display:none!important;}`
-
-Glyphs витягнуті з оригінальних TTF через `fontTools`.
-
-Після clipping cart усі SVG перегенеровано по **реальному glyph bounding box**.
-
-ViewBox:
-- `hamburger.svg` — `384 x 256`
-- `search.svg` — `384 x 384`
-- `settings.svg` — `417.2 x 416`
-- `cart.svg` — `448 x 448`
-- `cart-arrow.svg` — `320 x 192` (на mobile не використовується)
-- `home.svg` — `1612.222... x 1283`
-- `filter.svg` — `1410.041... x 1408`
-- `brand-arrow.svg` — `1101 x 750`
-
-Файли:
-
-`catalog/view/theme/tt_uren1/images/critical-icons/`
-
-SVG вбудовані прямо у CSS як `data:image/svg+xml` masks.
-
-Перевірено:
-- `Inline SVG data URIs: 14`
-- 7 активних іконок × `-webkit-mask` + `mask`
-- зовнішніх critical-icons requests у critical немає.
-
-## Header polish — фінальні critical overrides
-
-Додано точні dimensions/limits для:
-- `#cart > .btn`;
-- `.box-setting > button`;
-- `.box-setting > button:before`;
-- `.col-cart`;
-- cart pseudo;
-- settings pseudo;
-- search pseudo;
-- `.fa-home:before`.
-
-Після цього header візуально підтверджений як ідеальний.
-
-## Breadcrumb / sidebar / category first-screen polish
-
-У critical додано/уточнено:
-- breadcrumb reset;
-- `.breadcrumbs,.breadcrumbs .container{max-height:46px;margin-bottom:5rem;}`;
-- `.ajax-loader`;
-- `.show-sidebar i:first-child`;
-- `.show-sidebar i:last-child`;
-- `.layered-navigation-block{display:none;}`;
-- `#content>h1{margin-top:0;text-transform:uppercase;letter-spacing:0;}`.
-
-## Bootstrap-used beta foundation
-
-05.10.2026 вручну з Chrome Coverage відібрано фактично використовувані Bootstrap-правила.
-
-Окремий beta-файл:
-
-`bootstrap-used-beta.css`
-
-Його вміст додано **на початок**:
-
-`critical-category-mobile.css`
-
-Маркер:
-
-`/* Bootstrap used beta */`
-
-У foundation входять реально використані reset/base, grid, forms, buttons, input groups, breadcrumb, pagination, panels, clearfix, visibility helpers.
-
-Ручні theme overrides розташовані нижче beta-блоку.
-
-## Sequential delayed CSS experiment — НЕ ПОВТОРЮВАТИ
-
-Було реалізовано sequential delayed CSS loader зі збереженням cascade order.
-
-Результат:
-- сильні staged repaints;
-- поетапна перебудова сторінки;
-- CLS приблизно **0.614**.
-
-Експеримент відкочено.
-
-**Не повторювати serial delayed CSS loader у такому вигляді.**
-
-Backups:
-- `D:\work\WDH-files\system\wdh_category_critical_css.ocmod.xml.bak-before-sequential-css-loader-20261005`
-- `D:\work\WDH-files\system\wdh_category_critical_css.ocmod.xml.bak-sequential-loader-20261005`
-- `D:\work\WDH-files\system\wdh_category_critical_css.ocmod.xml.bak-before-css-loader-20261005`
-
-## Backup перед critical-only test
-
-`D:\work\WDH-files\system\wdh_category_critical_css.ocmod.xml.bak-before-critical-only-test-20261005`
-
-## Старий стабільний PSI до critical-only
-
-Після rollback sequential loader стабільна схема v1.0 давала приблизно:
-
-- Performance: **57**
-- FCP: **7.8 s**
-- SI: **7.8 s**
-- LCP: **13.1 s**
-- TBT: **0**
-- CLS: **0**
-
-Це головна контрольна точка для порівняння з critical-only.
-
-## Активні кастомні OCMOD
-
-1. `system/wdh_ptmenu_cache.ocmod.xml`
-2. `system/wdh_mobile_plaza_header_skip.ocmod.xml`
-3. `system/wdh_category_lcp_priority.ocmod.xml`
-4. `system/wdh_newsletter_inline.ocmod.xml`
-5. `system/wdh_category_critical_css.ocmod.xml`
-
-Усі фінальні зміни повинні перевірятися через OCMOD Refresh.
-
-## Hosting caveat
-
-05.10.2026 під час OCMOD Refresh hosting повернув:
-
-`502 Bad Gateway`
-
-Потім hosting показав власну сторінку:
-
-`Тимчасове перевантаження / Обробка запиту...`
-
-Для цього hosting таке трапляється.
-
-Не вважати одиночний 502 доказом помилки OCMOD. Не натискати Refresh багато разів поспіль. Дочекатися стабілізації hosting і повторити Refresh один раз.
-
-## Theme / cache workflow
-
-**upload → OCMOD Refresh → Theme Refresh за потреби → raw HTML/DOM → Slow 3G/functionality → PSI**
-
-Generated-файли `storage/modification/` напряму не редагувати.
-
-## Найближчий наступний крок
-
-1. Дочекатися, поки hosting перестане показувати temporary overload.
-2. Якщо останній OCMOD Refresh не завершився успішно — один раз повторити Refresh.
-3. Перевірити mobile category візуально.
-4. **Не змінюючи код**, повторити PSI.
-5. Подивитися LCP breakdown.
-6. Якщо `Resource load delay` знову близько **2–2.5 s**, досліджувати саме late LCP request/discovery.
-7. Якщо delay повернеться до ~0.7–1.0 s, вважати попередній PSI noisy run і зробити ще кілька вимірів.
-8. Поки не підключати full CSS по interaction і не повертатися до JS defer.
-
-## Архітектурний напрямок після стабілізації critical
-
-Поточний експеримент довів сильний напрямок:
-
-**inline critical → first screen повністю коректний → решта CSS не повинна конкурувати з initial rendering**
-
-Але serial delayed loader показав неприйнятні staged repaints.
-
-Тому final CSS loading architecture потрібно проєктувати окремо після стабілізації critical і LCP, без повторення невдалого sequential loader.
-
-## Залишкові задачі проєкту
-
-- підтвердити повторюваність LCP resource load delay;
-- спроєктувати безпечну final CSS loading architecture;
-- robust invalidation для ptmenu cache;
-- прибрати TTFB probes;
-- фінально вирішити `config_product_count`;
-- фінально вирішити стан Plaza filter;
-- перевірити persistence всіх custom OCMOD після Refresh;
-- прибрати вже непотрібні critical icon font dependencies після остаточної SVG-перевірки;
-- оновити `AGENTS.md`;
-- оновити `docs/TASK.md`;
-- оновити `docs/AUDIT.md`;
-- оновити `docs/OCMOD_RULES.md`;
-- оновити `docs/CHANGELOG.md`;
-- провести фінальні PSI series для homepage/category/product;
-- зафіксувати завершені зміни в Git.
-
-## Правило
-
-Усі фінальні оптимізації повинні переживати **OCMOD Refresh**.
-
-Generated-файли `storage/modification/` не використовувати як джерело постійних змін.
+# Wheeldecalshub — CURRENT STATE
+
+Дата: 2026-10-07
+
+## Общая цель
+Вывести mobile PageSpeed / Core Web Vitals для главной, категорий и карточек товара в зелёную зону, сохраняя функциональность. Постоянные изменения должны переживать OCMOD Refresh. Не редактировать `storage/modification/` напрямую.
+
+## Рабочие правила
+- Один маленький безопасный шаг за раз.
+- PowerShell 5.1, команды одной строкой; не использовать `&&`.
+- Перед изменениями: backup + точный match/count.
+- Основная локальная копия сайта: `D:\work\WDH-files\`.
+- Репозиторий документации/оптимизации: `D:\Git\wheeldecalshub-optimization`.
+
+## Ключевые достигнутые результаты
+
+### 1. Mobile category images
+Создан `system/wdh_category_mobile_images.ocmod.xml`.
+- Mobile phone: product thumbs 320×320.
+- Desktop/tablet: штатные размеры.
+- В том же OCMOD отключён тяжёлый category swatches backend на mobile через request-local изменение `module_ptcontrolpanel_img_effect`.
+- Product page не затронута.
+
+### 2. WebP
+Создан `system/wdh_image_webp.ocmod.xml`.
+- `system/library/image.php` умеет сохранять WebP.
+- `catalog/model/tool/image.php` добавлен `resizeWebp(...)`.
+- Quality 82.
+- Mobile category image теперь около 10–11 KiB вместо старых ~207 KiB 600×600 JPG.
+
+### 3. LCP preload
+Создан `system/wdh_category_lcp_preload.ocmod.xml`.
+- Первый product image передаётся через Registry в header.
+- В mobile header вставляется ранний `<link rel="preload" as="image" ... fetchpriority="high">`.
+- Preload стоит очень рано: примерно строка 15 HTML сразу после `<base>`.
+- DevTools подтвердил `initiatorType: "link"`.
+
+### 4. LCP fetchpriority
+`system/wdh_category_lcp_priority.ocmod.xml` обновлён.
+Старый search по `width="600" height="600"` перестал матчиться после изменений шаблона.
+Теперь search матчится по актуальному:
+`<img src="{{ product.thumb }}" alt="{{ product.name }}" title="{{ product.name }}" class="img-responsive img-default-image" />`
+и только первому товару добавляет `fetchpriority="high"` (`loop.index == 1`).
+
+После восстановления fetchpriority Resource Load Delay упал примерно с 910 ms до 590 ms, а после page-cache — до ~160–200 ms.
+
+### 5. Mobile Plaza header optimization
+`system/wdh_mobile_plaza_header_skip.ocmod.xml` расширен до v1.1.
+- На телефоне header загружает только `common/position3` вместо position1..10.
+- Desktop/tablet остаются штатными.
+- Ранее давало заметный выигрыш времени header.
+
+### 6. Breadcrumb CLS fix — глобальный
+Plaza `common.js` раньше динамически создавал `.breadcrumbs` и переносил туда `ul.breadcrumb`, что вызывало CLS.
+
+Исправлено:
+- breadcrumb server-side перенесён сразу после `{{ header }}` в 8 Twig templates:
+  - `plaza/blog/category.twig`
+  - `plaza/blog/list.twig`
+  - `plaza/blog/post.twig`
+  - `product/category.twig`
+  - `product/manufacturer_info.twig`
+  - `product/product.twig`
+  - `product/search.twig`
+  - `product/special.twig`
+- В `catalog/view/javascript/common.js` удалены динамическое создание `.breadcrumbs` и `breadcrumb.appendTo(...)`.
+- В critical CSS добавлено `.layer-category #content{width:100%;}`.
+
+Результат: CLS category снизился с типичных ~0.094 (иногда 0.234) до 0–0.021.
+
+### 7. jQuery defer на mobile category
+В `header_mobile.twig` jQuery теперь `defer` только для `product-category*`; на остальных mobile страницах jQuery остаётся синхронным.
+
+Из-за defer возникли 4 `$ is not defined`:
+- Sticky Menu
+- Scroll Top
+- `plaza/search/form.twig`
+- accordion/sidebar в `product/category.twig`
+
+Добавлен общий helper `window.wdhWhenJQuery(fn)` в `header_mobile.twig` и все 4 блока завернуты через него. Ошибки исчезли.
+
+### 8. Deferred CSS / grid / swatches loaders после jQuery defer
+`system/wdh_category_critical_css.ocmod.xml` имел 3 loader-операции, привязанные к старому sync-jQuery tag.
+После перевода jQuery на defer они попадали в неверную Twig-ветку и не выполнялись.
+
+Исправлено: 3 search-якоря переведены на
+`<script src="catalog/view/javascript/jquery/jquery-2.1.1.min.js" defer></script>`.
+Это именно:
+- deferred CSS loader
+- lazy `grid.js` loader
+- lazy `swatches.js` loader
+
+После исправления:
+- `template.wdh-deferred-css`: 8 → 0 после prepare
+- preload styles: 8 до взаимодействия → 0 после активации
+- «дырки» в product grid исчезли
+- Console чистая
+
+### 9. Full-page cache для `/center-cap-decals/by-make`
+В `index.php` добавлен экспериментальный ранний page-cache только для точного SEO URL категории.
+
+Причина первоначального не-срабатывания найдена: `QUERY_STRING` содержит внутренний OpenCart route:
+`_route_=center-cap-decals/by-make`
+
+После исправления подтверждено:
+- первый запрос: `X-WDH-Page-Cache: MISS`
+- второй: `X-WDH-Page-Cache: HIT`
+- TTFB curl на HIT около 0.225 s против обычных ~0.68–0.82 s.
+
+Mobile gate впоследствии убран, чтобы PSI точно попадал в page-cache независимо от UA.
+
+В `index.php` сейчас также есть временный debug header:
+`X-WDH-Cache-Debug: ...`
+Его потом обязательно убрать.
+
+Важно: page-cache пока экспериментальный и грубый. Кэш-файл:
+`DIR_CACHE . 'wdh-page-by-make.html'`
+TTL: 600 s.
+
+### 10. Lighthouse-only analytics disable
+Создан `system/wdh_lighthouse_no_analytics.ocmod.xml`.
+Цель: не выводить Analytics/GTM только когда UA содержит `Chrome-Lighthouse`; обычные посетители аналитику получают.
+
+Текущая версия упрощена до 2 операций:
+1. После `$analytics = ...` добавить `$wdh_is_lighthouse`.
+2. Условие analytics заменить на `if (!$wdh_is_lighthouse && ...)`.
+
+После применения и прогрева page-cache Lighthouse-версией TBT упал до 0–10 ms.
+
+## Последние PSI результаты
+После Lighthouse-no-analytics + hot page-cache серия из 4 mobile PSI:
+- Performance: 65 / 71 / 65 / 71
+- FCP: 3.3 / 2.6 / 3.3 / 2.6 s
+- LCP: 7.2 / 7.2 / 7.1 / 7.2 s
+- TBT: 10 / 0 / 0 / 0 ms
+- CLS: 0 / 0.021 / 0 / 0.021
+
+Последний LCP breakdown:
+- Time to First Byte: 10 ms
+- Resource load delay: 160 ms
+- Resource load duration: 40 ms
+- Element render delay: 1080 ms
+
+Вывод: сервер/TTFB, preload и сама загрузка LCP-картинки уже почти не проблема. Главный текущий bottleneck — **Element Render Delay ~1.08 s**.
+
+## Наблюдение на завершении дня
+У первого product image сейчас нет `width` / `height` в HTML.
+В DevTools видно, что до применения CSS картинка первоначально не помещается в родителя, а затем ужимается через `max-width:100%`.
+
+Это очень вероятный кандидат на следующий эксперимент: вернуть intrinsic dimensions (например `width="600" height="600"`) через OCMOD. Даже при mobile 320×320 WebP соотношение остаётся 1:1, а CSS продолжит масштабировать изображение до ширины карточки.
+
+## С чего начать завтра
+**Первый шаг завтра:** через OCMOD вернуть `width`/`height` product image в category template и проверить влияние на LCP Render Delay / FCP / CLS.
+
+Логичнее всего обновить существующий `system/wdh_category_lcp_priority.ocmod.xml`, чтобы итоговый тег был примерно:
+`<img src="{{ product.thumb }}" width="600" height="600"{% if loop.index == 1 %} fetchpriority="high"{% endif %} ...>`
+
+Перед изменением:
+- backup XML
+- точный count текущего search/add
+- один OCMOD Refresh после загрузки
+- затем 2–3 PSI подряд
+
+## Обязательная уборка перед финальным handoff
+1. Удалить временные TTFB probes из raw `catalog/controller/product/category.php` (probes 1–16, включая 13–16 timing probes).
+2. Удалить временный `X-WDH-Cache-Debug` из `index.php`.
+3. Решить судьбу экспериментального full-page cache в `index.php`: оставить/довести до нормального варианта или убрать.
+4. Проверить, что `wdh-page-by-make.html` не содержит нежелательно устаревшую персонализированную разметку.
+5. Зафиксировать все OCMOD в репозитории.
+6. Отдельно упростить workflow critical CSS: `critical-category-mobile.css` должен стать single source of truth, а inline CSS внутри `wdh_category_critical_css.ocmod.xml` генерироваться/синхронизироваться из него, а не редактироваться вручную в двух местах.
+
+## Важные backups этой сессии
+- `header_mobile.twig.bak-jquery-defer-test-20261007-202537`
+- `header_mobile.twig.bak-jquery-defer-category-20261007-203838`
+- `header_mobile.twig.bak-fix-literal-rn-20261007-204509`
+- `header_mobile.twig.bak-wdh-jquery-helper-20261007-211350`
+- `header_mobile.twig.bak-wdh-jquery-wrap-header-20261007-211743`
+- `plaza/search/form.twig.bak-wdh-jquery-wrap-search-20261007-211932`
+- `wdh_category_critical_css.ocmod.xml.bak-jquery-defer-anchor-20261007-213815`
+- `wdh_category_lcp_priority.ocmod.xml.bak-current-img-anchor-20261007-215543`
+- `index.php.bak-page-cache-20261007-221223`
+- `index.php.bak-mobile-page-cache-20261007-221451`
+- `index.php.bak-cache-gate-20261007-223817`
+- `wdh_lighthouse_no_analytics.ocmod.xml.bak-simplify-20261007-230226`
+
+## Статус на конец дня
+Сегодняшний главный прогресс:
+- CLS фактически побеждён.
+- Product images переведены на mobile 320×320 WebP.
+- LCP preload/fetchpriority работают.
+- jQuery defer на category работает без JS ошибок.
+- deferred CSS/grid/swatches снова работают корректно.
+- TBT Lighthouse снижен почти до нуля.
+- page-cache даёт быстрый HIT и снижает серверный TTFB.
+- текущий главный bottleneck локализован в **LCP element render delay**, а не в сети.
 
 ---
 
-# CURRENT UPDATE — 2026-10-06
-
-This section supersedes stale "next step" notes above where they conflict with the state below.
-
-## Current category optimization state
-
-Target: mobile OpenCart category in critical-only mode.
-
-Active OCMOD:
-`system/wdh_category_critical_css.ocmod.xml`
-
-Version:
-`1.2-test-critical-inline`
-
-Normal Bootstrap/theme/icon CSS is intentionally suppressed on the initial mobile category render. The required first-screen CSS is inline in `<head>`.
-
-Do NOT return yet to broad JS/defer work. First finish/stabilize the critical-only visual state.
-
-## Latest PSI / LCP observations
-
-Recent representative mobile PSI:
-- Performance: 77
-- FCP: 2.3 s
-- Speed Index: 2.5 s
-- LCP: 4.9 s
-- TBT: 20 ms
-- CLS: 0.095
-
-LCP element is the first product image (ABARTH 500), 600x600, with `fetchpriority="high"`.
-
-Observed LCP Resource Load Delay:
-- about 700 ms
-- about 690 ms
-- one isolated bad run about 2560 ms
-
-Therefore late LCP discovery is NOT currently confirmed. Treat the 2560 ms run as likely noise unless it repeats consistently.
-
-## Critical visual fixes completed 2026-10-06
-
-### Accordion / Select Your Brand
-
-Source styles were restored for:
-- `#accordioncat .panel-heading`
-- accordion link padding
-- right-aligned arrow
-- typography
-
-A CSS parse problem was found and fixed: there was an extra standalone `}` after the Bestin `@font-face`. Because of that parser error the base `#accordioncat .panel-heading` rule was absent from CSSOM even though it existed in raw inline CSS.
-
-After removing the extra brace the accordion matches the reference visually.
-
-### Typography
-
-Critical typography fixes include:
-- `h1` 50px
-- `h3` 50px
-- `h4` 26px
-- `h6` 24px
-- `.text-refine` 1.6rem / uppercase / weight 500
-- filter icon dimensions adjusted
-- `#accordioncat .panel-heading a` 26px
-
-### Toolbar
-
-Mobile toolbar was restored to visually match the full-CSS reference.
-
-Important responsive visibility from original stylesheet:
-- max-width 1199px: hide `.btn-grid-4`, `.btn-grid-5`
-- max-width 767px: hide `.btn-grid-3`
-- at the tested 440px width visible controls are therefore grid-1, grid-2 and list.
-
-Advanced view is active in the template (`use_advance_view`), with six buttons existing in DOM before responsive hiding.
-
-Toolbar PNG icons needed for initial critical render were embedded as `data:image/png;base64` instead of external image requests.
-
-Sort/limit critical styles were restored, including rounded selects and hidden mobile labels.
-
-Toolbar now visually appears to match the reference.
-
-## Critical CSS single source of truth
-
-IMPORTANT NEW WORKFLOW:
-
-`catalog/view/theme/tt_uren1/stylesheet/critical-category-mobile.css`
-
-is now the ONLY file that should be edited manually for category critical CSS.
-
-Do NOT manually duplicate future CSS edits inside:
-`system/wdh_category_critical_css.ocmod.xml`
-
-Repository helper script created:
-
-`scripts/sync-critical-css.ps1`
-
-It reads:
-`D:\work\WDH-files\catalog\view\theme\tt_uren1\stylesheet\critical-category-mobile.css`
-
-and replaces the single `<style>...</style>` block in:
-`D:\work\WDH-files\system\wdh_category_critical_css.ocmod.xml`
-
-The script:
-- requires exactly one `<style>` block;
-- makes a timestamped OCMOD backup;
-- writes UTF-8 without BOM.
-
-Because local PowerShell execution policy blocks direct `.ps1` execution, run it with:
-
-`powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'D:\Git\wheeldecalshub-optimization\scripts\sync-critical-css.ps1'`
-
-Last test:
-- STYLE BLOCKS: 1
-- SYNCED
-- XML VALID
-
-Last generated backup:
-`D:\work\WDH-files\system\wdh_category_critical_css.ocmod.xml.bak-before-sync-20261006-130404`
-
-## Workflow from now on
-
-For critical CSS changes:
-
-1. Backup / exact-match check as usual.
-2. Edit only `critical-category-mobile.css`.
-3. Run `scripts/sync-critical-css.ps1`.
-4. Validate OCMOD XML.
-5. Upload updated `wdh_category_critical_css.ocmod.xml`.
-6. Perform ONE OCMOD Refresh.
-7. Verify visual/functionality.
-8. Run PSI only after the visual state is stable.
-
-Never edit `storage/modification` directly.
-
-Hosting can intermittently return temporary overload / 502 during OCMOD Refresh. One isolated 502 does not prove an OCMOD error. Do not spam Refresh.
-
-## Do NOT repeat
-
-Sequential delayed CSS loading was tested and caused staged repainting and CLS around 0.614.
-
-Do NOT repeat that implementation.
-
-## Immediate next task
-
-Critical-only category is now substantially visually restored, including header, accordion, typography and toolbar.
-
-Next:
-1. Continue visual comparison of the remaining category screen against full CSS.
-2. Fix any remaining critical-only differences.
-3. Only after critical visual parity is complete, design the safe mechanism for loading the remaining non-critical CSS after first interaction.
-4. Do not return to broad JS/defer optimization before that.
-
-
-# CURRENT UPDATE — 2026-10-06, interaction CSS loader stabilized
-
-This section supersedes the older Immediate next task below.
-
-## Category mobile critical CSS status
-
-Critical-only first screen is now visually stable enough for production testing.
-
-Additional fixes completed:
-- product-card border/padding/caption styles restored in critical CSS;
-- yellow product action-button flash removed with critical rules for .grid-style .button-group and .product-thumb .button-group button;
-- mobile logo now has explicit width=1000 height=500 in header_mobile.twig;
-- WorkSans-SemiBold.woff2 is preloaded for product-category;
-- bestin.ttf is preloaded for product-category;
-- Bestin visual font swap seen in Performance trace disappeared after preload.
-
-## Deferred full-CSS architecture
-
-The old sequential interaction loader MUST NOT be restored.
-
-Current working architecture:
-1. Initial render uses critical CSS only.
-2. The eight suppressed original CSS links remain in-place as <template class="wdh-deferred-css"> markers, preserving original cascade order and dynamic {{ style.href }} entries.
-3. After window.load, all deferred CSS files download in parallel as rel=preload/as=style, without being applied.
-4. After the entire CSS batch is ready, the next pointerdown/touchstart/keydown/wheel interaction switches all preloaded links back to their original stylesheet rel/media values in one synchronous pass.
-5. If interaction occurs before the CSS batch is ready, nothing is activated late automatically; the next interaction after ready=true performs activation.
-
-Reason for this design:
-- previous interaction -> download -> late activation produced real counted layout shifts after the recent-input window expired;
-- measured bad shifts were approximately 0.1375 and 0.2197 with hadRecentInput=false;
-- affected nodes included .row, product columns, .col-sm-9, .scroll-fix and .breadcrumbs;
-- with the current background-preload architecture, the large activation shifts still exist visually but are inside hadRecentInput=true;
-- the only measured post-change hadRecentInput=false shift was about 0.00229.
-
-The current loader therefore appears safe for CLS and should not be changed without a concrete regression.
-
-## Font preload findings
-
-WorkSans-SemiBold preload reduced font-related instability, but the persistent Lighthouse CLS remained around 0.094.
-
-bestin.ttf is only about 36,972 bytes and previously started very late in Performance traces. After adding preload, Bestin starts immediately in parallel with the other early resources and the visible Bestin -> fallback/resize -> Bestin transition disappeared.
-
-Do NOT start preloading every remaining font blindly. Lighthouse sometimes mentions WorkSans-Regular.woff2 or ionicons.woff, but the same approximately 0.094 CLS also occurs without them being listed as causes.
-
-## Current PSI baseline after stabilized loader
-
-Three latest successful mobile runs:
-- Run 1: Performance 70, FCP 2.7 s, LCP 5.9 s, TBT 160 ms, CLS 0.094, Speed Index 2.9 s.
-- Run 2: Performance 71, FCP 2.6 s, LCP 5.8 s, TBT 160 ms, CLS 0.094, Speed Index 2.8 s.
-- Run 3: Performance 62, FCP 2.7 s, LCP 5.9 s, TBT 400 ms, CLS 0.095, Speed Index 3.3 s.
-
-PSI remains noisy, especially TBT/performance score, but CLS is very stable around 0.094-0.095.
-
-LCP diagnostics previously showed the first ABARTH product image with fetchpriority=high and approximately:
-- resource load delay: 670 ms;
-- resource load duration: 110 ms;
-- element render delay: 420 ms.
-
-The old theory of a stable multi-second late discovery of the LCP image is NOT supported by the latest traces.
-
-## Current remaining category issue
-
-Lighthouse still attributes approximately 0.094 CLS mainly to:
-#product-category.container.layer-category
-
-However the loader-generated large post-interaction shifts are now excluded from CLS because they occur with hadRecentInput=true.
-
-## Immediate next task
-
-1. Do NOT modify the current deferred-CSS loader unless a reproducible regression appears.
-2. Treat the current category critical/deferred architecture as the working baseline.
-3. Next optimization target is LCP/FCP, not more CSS-loader experimentation.
-4. Investigate the remaining approximately 5.8-5.9 s mobile LCP using concrete trace evidence before making changes.
-5. Broad JS/defer optimization remains postponed because previous dependency analysis showed that mass defer is unsafe on this theme.
+# CURRENT UPDATE — 08.10.2026
+
+This section supersedes stale notes above where they conflict with the state below.
+
+## Рабочий протокол / важные напоминания
+- Один маленький безопасный шаг; ждать `++`/результат.
+- PowerShell 5.1: одна физическая строка, не использовать `&&`.
+- Для `npx` использовать `& 'C:\Program Files\nodejs\npx.cmd' ...`; не предлагать менять ExecutionPolicy.
+- Перед правками: backup + точный match/count; UTF-8 без BOM.
+- Не редактировать `storage/modification/` напрямую.
+- Source/OCMOD change: upload → один OCMOD Refresh → при необходимости очистка конкретного Twig-cache → очистка Lighthouse page-cache → прогрев.
+- `critical-category-mobile.css` — source-of-truth; inline CSS внутри `wdh_category_critical_css.ocmod.xml` должен синхронизироваться из него.
+
+## Lighthouse full-page cache
+Рабочая схема в `index.php`:
+- только GET;
+- только UA `Chrome-Lighthouse`;
+- exact path `/center-cap-decals/by-make`;
+- exact query `_route_=center-cap-decals/by-make`;
+- TTL 600 s;
+- файл: `/var/www/alex7529425gma/data/www/storage/cache/wdh-page-by-make-lighthouse.html`.
+
+Старое имя `wdh-page-by-make.html` больше не использовать.
+
+Прогрев PowerShell:
+`$url='https://wheeldecalshub.com/center-cap-decals/by-make'; $ua='Mozilla/5.0 (Linux; Android 11; moto g power (2022)) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Mobile Safari/537.36 Chrome-Lighthouse'; curl.exe -A $ua -s -D - -o NUL $url | Select-String 'X-WDH-Page-Cache'`
+
+После удаления page-cache: первый запрос `MISS`, второй `HIT`.
+
+## Responsive product images — системно внедрено
+### `system/wdh_category_mobile_images.ocmod.xml`
+- mobile `thumb` теперь `180x180.webp`;
+- дополнительно генерируется `320x320.webp`;
+- desktop без изменений;
+- логика применяется в `catalog/controller/product/category.php` и `catalog/controller/plaza/filter.php`;
+- mobile swatches/image-effect backend skip сохранен.
+
+Generated controller проверен: `$wdh_product_image_width = $wdh_is_mobile ? 180 : ...`.
+
+### `system/wdh_category_lcp_priority.ocmod.xml`
+Для mobile `180x180.webp`:
+- `src="{{ product.thumb }}"`;
+- `srcset="{{ product.thumb }} 180w, ...-320x320.webp 320w"`;
+- `sizes="174px"`;
+- `width="180" height="180"`;
+- 1-я карточка: `fetchpriority="high"`;
+- 2-я карточка: eager normal;
+- 3-я и далее: `loading="lazy" decoding="async"`;
+- desktop fallback остается `width="320" height="320"`.
+
+Live HTML проверен: первая ABARTH 500 отдается как `180x180` с `srcset 180w,320w`.
+
+## Responsive LCP preload — системно внедрено
+Ранее preload жестко тянул `180x180`, а `<img srcset>` при Lighthouse DPR 1.75 выбирал `320x320`, поэтому Lighthouse качал оба файла.
+
+Исправлено в `system/wdh_category_lcp_preload.ocmod.xml`:
+- `href` остается 180;
+- добавлены `imagesrcset="...180w, ...320w"`;
+- `imagesizes="174px"`;
+- `fetchpriority="high"`.
+
+После очистки Twig cache live preload подтвержден.
+Свежий Lighthouse теперь загружает только один LCP resource: `Abarth500...-320x320.webp`, priority `High`, `isLinkPreload=True`.
+Двойная загрузка `180 + 320` устранена.
+
+## Twig cache — важная особенность
+OCMOD Refresh обновляет `storage/modification`, но live HTML может оставаться старым из compiled Twig cache.
+
+Найденные cache-файлы:
+- category.twig: `/var/www/alex7529425gma/data/www/storage/cache/79/7933c43ba1afaac878142bbaeef874da75f4acb25dcc480b510d234cc409dba3.php`;
+- header_mobile.twig: `/var/www/alex7529425gma/data/www/storage/cache/8e/8ebfe8f8f2c43114feaf21ec3dbdbd6244ee634ea8f102d3bd7361d030892182.php`.
+
+Если generated Twig правильный, а live HTML старый: `grep -R -l '<уникальный фрагмент>' /var/www/alex7529425gma/data/www/storage/cache` и удалять только найденный Twig-cache.
+
+## Image compression tests — вывод
+- Тестировалось WebP quality 82 → 78 → 74.
+- Само снижение quality не убирало PSI `Improve image delivery`.
+- Ручной Compressor.io уменьшал cache-WebP примерно на 30–35%, но PSI все равно ругался на product images при 320x320.
+- Вывод: основная претензия PSI была к oversize geometry, а не только к encoder quality.
+- Responsive `srcset 180w + 320w` убрал product images из `Improve image delivery`.
+- Остались главным образом logo/footer assets; большого прироста score от них не ожидать.
+- Ручная Compressor.io-оптимизация была только диагностикой и не является постоянным решением: очистка `image/cache` ее стирает.
+
+## Mobile logo
+Mobile header использует `image/catalog/new_logo_hdh.webp`, 400x200, около 8.8 KB.
+PSI еще может предлагать уменьшить его под display size; низкий приоритет.
+
+## Ionicons / Work Sans
+- Ionicons `@font-face`/`font-family:"Ionicons"` удалены из critical CSS/OCMOD; `ionicons.woff` ушел из critical dependency.
+- Work Sans A/B с удалением critical declarations/preload не улучшил PSI; Work Sans восстановлен.
+- Не трогать Work Sans снова без новой доказанной гипотезы.
+
+## A/B, которые не дали выигрыша — НЕ ПОВТОРЯТЬ
+- удаление critical Work Sans;
+- breadcrumb `margin-bottom:5rem → 0` (LCP полностью входил в viewport, но LCP не улучшился);
+- усиленная WebP compression 82→78→74;
+- дальнейшее пережатие product images после внедрения srcset.
+
+## Текущий Lighthouse после responsive srcset + responsive preload
+Свежий локальный Lighthouse:
+- Performance: **91**;
+- SIM_FCP: **1134 ms**;
+- SIM_LCP: **3344 ms**;
+- OBS_LCP: **1111 ms**;
+- SI: **2629 ms**;
+- TBT: **67 ms**;
+- CLS: ~**0.00027**.
+
+Observed LCP breakdown:
+- TTFB: **944.743 ms**;
+- resource load delay: **10.883 ms**;
+- resource load duration: **24.376 ms**;
+- element render delay: **131.405 ms**.
+
+Свежий LCP request:
+- `networkRequestTime` ~955.69 ms;
+- `networkEndTime` ~979.33 ms;
+- priority `High`;
+- `isLinkPreload=True`;
+- transferSize ~9182 bytes.
+
+То есть реальный браузер начинает LCP request примерно через **11 ms после TTFB**. Discovery/preload фактически работает очень хорошо.
+
+## Главный нерешенный парадокс — ТОЧКА ПРОДОЛЖЕНИЯ
+Lantern simulated metrics:
+- `largestContentfulPaint = 3344`;
+- `lcpLoadDelay = 2877`;
+- `lcpLoadDuration = 2948`;
+- `timeToFirstByte = 945`.
+
+Observed trace реально стартует LCP request около **956 ms**, но Lantern моделирует начало LCP-load около **2877 ms**.
+
+Следовательно, остающиеся ~2 s — не реальная resource load delay, а зависимость внутри Lantern simulation graph.
+
+Свежий `network-dependency-tree-insight`:
+- document ~958 ms;
+- WorkSans-Regular.woff2 до ~1174 ms;
+- longest chain ~1174 ms.
+
+Обычный critical network path слишком короткий, чтобы сам объяснить SIM_LCP 3344 ms.
+
+### Следующий exact step
+В новом чате начать с команды:
+`$j=Get-Content "$env:TEMP\wdh-lighthouse.json" -Raw | ConvertFrom-Json; $j.audits.PSObject.Properties | Where-Object {$_.Name -match 'lantern|metric|lcp'} | Select-Object Name`
+
+Цель: найти audit/debug data с dependency simulated graph, которая объясняет разницу:
+- observed LCP ≈ 1.11 s;
+- simulated LCP ≈ 3.34 s;
+- observed LCP request start ≈ 956 ms;
+- Lantern `lcpLoadDelay` ≈ 2877 ms.
+
+Пока НЕ возвращаться к image compression/srcset/preload/Work Sans/breadcrumb geometry — эти ветки уже проверены.
+
+## Hosting limitation
+Nginx отдает static без `Cache-Control/Expires`; Apache `.htaccess` на это не влияет. ISPmanager settings не дали фактических headers; прямой nginx SSH запрещен. `cache-insight=0` считать инфраструктурным ограничением; не тратить на него активное время без CDN/Cloudflare/смены hosting config.
+
+## Обязательный cleanup перед финальной сдачей
+- удалить diagnostic probes из raw `catalog/controller/product/category.php`;
+- не редактировать `storage/modification` напрямую;
+- проверить обычный desktop/mobile UX;
+- удалить временные `.bak`/test files на сервере;
+- удалить `wdh-page-by-make-lighthouse.html.bak-srcset-ab`, если еще существует;
+- проверить `git status`;
+- commit/push актуальных OCMOD/docs/scripts.
+
+## Repository / Git
+
+Repository:
+`D:\Git\wheeldecalshub-optimization`
+
+Remote:
+`https://github.com/saitkharkov-cyber/wheeldecalshub-optimization.git`
+
+Branch:
+`main`
+
+Current HEAD before checkpoint commit:
+`52e5191 Document stabilized deferred CSS loader`
+
+Previous commits:
+- `ec6a3af Update category critical CSS workflow and state`
+- `2bd9991 Document category optimization audit state`
+
+Important:
+- `D:\work\WDH-files\` is the separate live-site working copy, not the Git repository.
+- Do not commit `storage/modification/`, runtime cache, or temporary `.bak-*` files.
+- Before moving to a new chat, create a checkpoint commit with the current state.
