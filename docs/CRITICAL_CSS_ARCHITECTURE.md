@@ -132,6 +132,72 @@ Page-specific файл не повинен дублювати весь common ш
 
 Він має містити тільки правила, специфічні для конкретного типу сторінки.
 
+### Порядок CSS у `<head>` і збереження cascade
+
+Порядок правил усередині critical CSS і порядок stylesheet-ів у `<head>` є частиною архітектури та не можуть змінюватися довільно.
+
+Під час перенесення правил у critical CSS необхідно зберігати не тільки самі CSS-декларації, але й їхнє відносне положення у cascade.
+
+Зокрема, якщо вихідна тема має порядок:
+
+`Bootstrap → Plaza/header CSS → WDH overrides`
+
+то critical CSS повинен відтворювати ту саму логіку:
+
+`Bootstrap critical subset → header critical subset → WDH critical overrides`
+
+Не можна переносити правило з `header1.css` перед Bootstrap, якщо в оригінальній темі `header1.css` завантажувався після Bootstrap. Інакше навіть ідентичний CSS може змінити результат через cascade.
+
+Особливо небезпечні властивості:
+
+- `display`;
+- `position`;
+- `width`, `min-width`, `max-width`;
+- `height`, `min-height`, `max-height`;
+- `padding`, `margin`;
+- `grid-*`;
+- `flex-*`;
+- `visibility`;
+- `overflow`;
+- правила з `!important`.
+
+Перед видаленням старого inline critical необхідно перевірити фактичний порядок у live `<head>` через DevTools.
+
+### Маркування джерел усередині critical CSS
+
+Кожен великий перенесений фрагмент у `critical-*.css` повинен мати коментар із зазначенням вихідного файлу та його ролі у cascade.
+
+Рекомендований формат:
+
+```css
+/* ==========================================================================
+   SOURCE: catalog/view/theme/tt_uren1/stylesheet/bootstrap/bootstrap.min.css
+   ROLE: Bootstrap critical subset
+   ORIGINAL ORDER: before plaza/header/header1.css
+   ========================================================================== */
+```
+
+Для header:
+
+```css
+/* ==========================================================================
+   SOURCE: catalog/view/theme/tt_uren1/stylesheet/plaza/header/header1.css
+   ROLE: Mobile header critical subset
+   ORIGINAL ORDER: after Bootstrap
+   ========================================================================== */
+```
+
+Для власних оптимізацій:
+
+```css
+/* ==========================================================================
+   SOURCE: WDH custom
+   ROLE: Critical overrides / CWV fixes
+   ========================================================================== */
+```
+
+Номери рядків вихідних CSS-файлів у таких коментарях не фіксуються, оскільки вони швидко стають неактуальними після редагування source-файлів.
+
 ## Загальний mobile шар
 
 `critical-common-mobile.css`
