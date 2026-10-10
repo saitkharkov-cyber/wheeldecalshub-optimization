@@ -10,52 +10,100 @@
 
 ## Призначення
 
-Цей документ описує архітектуру critical CSS і відкладеного завантаження повних стилів у проєкті Wheeldecalshub.
+Цей документ описує архітектуру critical CSS і пов’язаного з ним відкладеного завантаження повних стилів у проєкті Wheeldecalshub.
 
-Основна мета — забезпечити швидкий перший рендер без втрати візуальної коректності та зберегти всі зміни після OCMOD Refresh.
+Основна мета — забезпечити швидкий перший рендер без втрати візуальної коректності, уникнути ручного дублювання великих CSS-блоків усередині OCMOD та зберегти всі зміни після OCMOD Refresh.
+
+## Поточна архітектура
+
+Поточна цільова схема:
+
+`CSS source-файли → PHP loader → controller data → Twig → inline <style>`
+
+OCMOD більше не повинен бути місцем зберігання десятків кілобайт critical CSS.
+
+OCMOD використовується лише як інтеграційний шар, який:
+
+- підключає PHP loader;
+- передає зібраний critical CSS у `$data`;
+- додає одну невелику Twig-вставку у потрібний `<head>`.
+
+Сам CSS зберігається у звичайних `.css` файлах і читається loader-ом під час формування сторінки.
 
 ## Source of truth
 
-Локальні файли:
+Єдиним практичним source of truth для critical CSS мають бути файли:
 
-- `catalog/view/theme/tt_uren1/stylesheet/critical-common-mobile.css`
-- `catalog/view/theme/tt_uren1/stylesheet/critical-category-mobile.css`
-- `catalog/view/theme/tt_uren1/stylesheet/critical-common-desktop.css`
-- `catalog/view/theme/tt_uren1/stylesheet/critical-category-desktop.css`
-- майбутні product-specific critical CSS
+- `catalog/view/theme/tt_uren1/stylesheet/wdh/critical-common-mobile.css`
+- `catalog/view/theme/tt_uren1/stylesheet/wdh/critical-category-mobile.css`
+- `catalog/view/theme/tt_uren1/stylesheet/wdh/critical-product-mobile.css`
 
-є робочими вихідними файлами для розробки.
+Надалі за потреби можуть бути додані desktop-еквіваленти, наприклад:
 
-Вони не є обов’язковими на production і зазвичай не завантажуються на сервер.
+- `catalog/view/theme/tt_uren1/stylesheet/wdh/critical-common-desktop.css`
+- `catalog/view/theme/tt_uren1/stylesheet/wdh/critical-category-desktop.css`
+- `catalog/view/theme/tt_uren1/stylesheet/wdh/critical-product-desktop.css`
 
-Production critical CSS вбудовується inline через OCMOD, насамперед через:
+Ці файли повинні бути присутні на production, оскільки PHP loader читає їх безпосередньо з файлової системи.
 
-`system/wdh_category_critical_css.ocmod.xml`
+Не можна вручну підтримувати один і той самий CSS одночасно в `.css` файлі та всередині OCMOD XML.
 
-Довгострокове правило:
+## PHP loader
 
-> Critical CSS редагується в локальних source-файлах, після чого inline-блок усередині OCMOD має синхронізуватися або генеруватися з них автоматично. Один і той самий CSS не можна вручну підтримувати одночасно у двох місцях.
+Loader:
 
-## Постійність змін через OCMOD
+`system/library/wdh/critical_css.php`
 
-Усі постійні зміни мають знаходитися або у вихідних файлах сайту, або в OCMOD XML.
+Його відповідальність:
 
-Не можна редагувати `storage/modification/` напряму.
+- визначити, чи потрібен critical CSS для поточного route;
+- прочитати потрібні CSS source-файли;
+- зібрати їх у правильному порядку;
+- повернути один inline `<style>` без додаткового HTTP-запиту.
 
-Будь-яка правка, яка має пережити OCMOD Refresh, повинна існувати у вихідному файлі або в OCMOD.
+Поточний mobile loader працює для:
+
+- `product/category`
+- `product/product`
+
+Поточний wrapper:
+
+`<style id="wdh-critical-mobile" media="(max-width:991px)">`
+
+Якщо source-файл відсутній або порожній, loader не повинен ламати сторінку.
+
+## Інтеграційний OCMOD
+
+Інтеграційний OCMOD:
+
+`system/wdh_critical_css_loader.ocmod.xml`
+
+Він не містить великих CSS-блоків.
+
+Поточна логіка:
+
+1. у `catalog/controller/common/header.php` після отримання header scripts підключається `system/library/wdh/critical_css.php`;
+2. визначається поточний `route`;
+3. результат loader-а записується у `$data['wdh_critical_css']`;
+4. у mobile header після `<base href="{{ base }}" />` виводиться:
+
+```twig
+{% if wdh_critical_css %}{{ wdh_critical_css|raw }}{% endif %}
+```
+
+Ця схема вже перевірена на live product page.
 
 ## Точки впровадження mobile і desktop
 
 ### Mobile
 
-Mobile-сторінки використовують `header_mobile.twig`, який підключається через `plaza_control_panel.ocmod.xml`.
+Mobile-сторінки використовують:
 
-Mobile critical CSS вставляється туди для потрібних типів сторінок.
+`catalog/view/theme/tt_uren1/template/plaza/page_section/header_mobile.twig`
 
-Поточні префікси route/class:
+Plaza Control Panel вибирає цей шаблон для mobile через `Mobile_Detect`.
 
-- категорія: `product-category`
-- товар: `product-product`
+Loader формує `$data['wdh_critical_css']` у `catalog/controller/common/header.php`, тому те саме значення доступне незалежно від того, який header view буде обрано далі.
 
 ### Desktop
 
@@ -63,22 +111,37 @@ Desktop використовує справжній `<head>` із:
 
 `catalog/view/theme/tt_uren1/template/common/header.twig`
 
-Desktop critical CSS має вставлятися саме в `common/header.twig`.
+Desktop critical CSS у майбутньому має інтегруватися саме туди.
 
-Не можна розміщувати desktop critical лише в `plaza/page_section/header/header1.twig`, тому що цей шаблон є body-фрагментом, а не справжнім `<head>` документа.
+Не можна вставляти desktop critical лише у `plaza/page_section/header/header1.twig`, тому що цей шаблон є body-фрагментом, а не справжнім `<head>` документа.
 
-## Шари critical CSS
+На першому етапі міграції desktop не змінюється.
 
-Архітектура будується шарами.
+## Порядок шарів
 
-### Загальний mobile шар
+Порядок складання critical CSS принциповий:
+
+`common → page-specific`
+
+Тобто:
+
+- category: `critical-common-mobile.css` → `critical-category-mobile.css`;
+- product: `critical-common-mobile.css` → `critical-product-mobile.css`.
+
+Page-specific файл не повинен дублювати весь common шар.
+
+Він має містити тільки правила, специфічні для конкретного типу сторінки.
+
+## Загальний mobile шар
 
 `critical-common-mobile.css`
 
-Містить спільні стилі першого екрана:
+Містить тільки спільні правила першого екрана, які однаково потрібні на category і product.
 
-- мінімально необхідну частину Bootstrap;
-- базову типографіку;
+До цього шару можуть входити:
+
+- базова типографіка;
+- мінімально необхідні Bootstrap-правила;
 - header;
 - logo;
 - search;
@@ -86,24 +149,33 @@ Desktop critical CSS має вставлятися саме в `common/header.tw
 - settings;
 - mobile menu;
 - breadcrumbs;
-- спільну геометрію;
+- спільна геометрія;
 - SVG-заміни іконок, які потрібні до завантаження icon fonts.
 
 У цей файл не повинні потрапляти category-specific або product-specific правила.
 
-### Mobile category
+## Mobile category
 
 `critical-category-mobile.css`
 
-Містить загальний mobile шар плюс toolbar категорії, фільтри, category-specific картки товарів, category-only іконки та потрібні accordion/filter правила.
+Має містити тільки category-specific правила, наприклад:
 
-### Mobile product
+- toolbar;
+- filter / accordion;
+- off-canvas columns;
+- category-specific product cards;
+- category-only іконки;
+- responsive category layout.
 
-Product page має використовувати загальний mobile critical і окремий product-specific critical для першого видимого екрана.
+Він не повинен повторювати common mobile шар.
 
-Product-specific critical має містити лише те, що потрібно до активації повних CSS, наприклад:
+## Mobile product
 
-- основну product gallery;
+`critical-product-mobile.css`
+
+Має містити тільки product-specific правила, необхідні для першого видимого екрана, наприклад:
+
+- product gallery;
 - thumbnails;
 - назву товару;
 - rating;
@@ -112,7 +184,48 @@ Product-specific critical має містити лише те, що потріб
 - quantity / buy controls, якщо вони потрапляють у перший екран;
 - responsive product layout.
 
-Reviews, related products і нижні блоки не потрібно додавати без підтвердження через Coverage.
+Reviews, related products та нижні блоки не потрібно додавати без підтвердження через Coverage або фактичний first render.
+
+## Міграція зі старого монолітного OCMOD
+
+Старий файл:
+
+`system/wdh_category_critical_css.ocmod.xml`
+
+історично містить великі inline-блоки critical CSS для mobile і desktop.
+
+Міграція виконується поступово.
+
+Правило безпечного перенесення кожного фрагмента:
+
+1. визначити маленький однозначний CSS-фрагмент;
+2. додати його у відповідний новий source-файл;
+3. перевірити, що loader реально виводить його у live HTML;
+4. тимчасово допустити дублювання старого і нового правила;
+5. перевірити візуальний рендер і Console;
+6. зробити backup старого XML;
+7. видалити лише підтверджену mobile-копію зі старого XML;
+8. виконати OCMOD Refresh;
+9. перевірити live HTML повторно;
+10. тільки після цього переходити до наступного фрагмента.
+
+Не можна одночасно переносити великий шар CSS або видаляти старий monolith до підтвердження нового шляху.
+
+## Перший підтверджений перенос
+
+Першим пілотним фрагментом стали два `@font-face` для Work Sans.
+
+Вони були винесені у:
+
+`catalog/view/theme/tt_uren1/stylesheet/wdh/critical-common-mobile.css`
+
+Після перевірки нового loader-а mobile-копії цих `@font-face` були видалені зі старих category та product inline-блоків у `wdh_category_critical_css.ocmod.xml`.
+
+Desktop-копія залишена без змін.
+
+Таким чином перший реальний фрагмент уже має новий source of truth і успішно проходить через ланцюжок:
+
+`critical-common-mobile.css → WdhCriticalCss → $data['wdh_critical_css'] → header_mobile.twig → inline <style>`
 
 ## Відкладене завантаження повних CSS
 
@@ -122,20 +235,22 @@ Reviews, related products і нижні блоки не потрібно дод�
 
 Повні CSS-посилання не беруть участі в першому рендері як звичайні `rel="stylesheet"`.
 
-Після `window.load` JavaScript перетворює їх на `rel="preload" as="style"`.
+Після `window.load` вони готуються як `preload`, а реальний stylesheet активується після взаємодії користувача.
 
-Реальний `stylesheet` активується після першої взаємодії користувача.
-
-Використовувані події:
+Поточні події активації:
 
 - `pointerdown`
 - `touchstart`
 - `keydown`
 - `wheel`
 
-Той самий механізм можна використовувати на product page лише після того, як product critical стане достатнім для коректного першого рендеру.
+Critical CSS loader і deferred CSS — це різні відповідальності.
 
-Не можна вмикати defer для всіх CSS раніше, ніж critical CSS повністю покриє перший екран.
+У перспективі deferred-логіку слід винести з монолітного XML в окремий невеликий OCMOD, наприклад:
+
+`system/wdh_deferred_css.ocmod.xml`
+
+Але це не робиться одночасно з першими кроками міграції critical CSS.
 
 ## Політика іконок
 
@@ -145,70 +260,19 @@ Critical CSS не повинен залежати від icon fonts, якщо с
 
 Іконки першого екрана мають бути замінені на inline SVG або SVG-mask.
 
-Поточні спільні mobile SVG-заміни:
+Спільні mobile SVG-заміни повинні жити у common шарі.
 
-- menu;
-- settings;
-- search;
-- cart;
-- home у breadcrumbs.
-
-Category-only іконки, наприклад filter і accordion, залишаються в category-specific critical.
-
-Це дозволяє уникнути додаткових font-запитів, flash відсутніх іконок, layout shift і затримки першого paint.
-
-## Поточний стан mobile product
-
-На product mobile вже існує inline-блок:
-
-`<style id="critical-product-mobile" media="(max-width:991px)">`
-
-Загальний mobile header/base шар уже підключений.
-
-При цьому повні product CSS поки що завантажуються звичайними stylesheet-посиланнями.
-
-Product route не можна повністю переводити на deferred CSS, доки не додано і не перевірено product-specific critical.
-
-Правильний порядок:
-
-1. завершити загальний mobile critical;
-2. замінити потрібні іконки першого екрана на SVG;
-3. додати product-specific critical;
-4. перевірити перший рендер візуально;
-5. лише після цього вмикати deferred CSS для `product-product`.
-
-## Поточний список CSS на mobile product
-
-На момент фіксації mobile product завантажує:
-
-- Bootstrap;
-- Magnific Popup;
-- product zoom CSS;
-- Swiper CSS;
-- OpenCart Swiper CSS;
-- Cloud Zoom CSS;
-- swatches CSS;
-- Form Builder CSS;
-- Font Awesome;
-- Ionicons;
-- Plaza Icon;
-- `stylesheet.css`;
-- `header1.css`;
-- `theme.css`.
-
-Перед увімкненням загального defer кожен із цих CSS потрібно перевірити.
-
-Частина з них може виявитися непотрібною і має бути видалена, а не просто відкладена.
+Category-only іконки мають залишатися у category-specific critical, product-only — у product-specific critical.
 
 ## Робота з Coverage
 
-Chrome Coverage використовується як фільтр для формування product-specific critical.
+Chrome Coverage використовується як фільтр для формування page-specific critical.
 
 Не можна сліпо копіювати великі блоки CSS.
 
 Правильна послідовність:
 
-1. визначити вихідний локальний CSS-файл;
+1. визначити вихідний CSS-файл;
 2. знайти точний source-блок;
 3. перевірити використання правил через Coverage;
 4. взяти лише правила першого екрана;
@@ -222,28 +286,66 @@ Chrome Coverage використовується як фільтр для фор
 
 Після deferred завантаження повних CSS такі перевизначення мають бути вже в page-specific critical.
 
-Особлива увага: `h1`, font-size, margins, product layout, responsive media rules, pseudo-elements іконок і правила з `!important`.
+Особлива увага потрібна для:
+
+- `h1` та інших заголовків;
+- font-size;
+- margins;
+- product layout;
+- responsive media rules;
+- pseudo-elements іконок;
+- правил з `!important`.
 
 Не можна вважати, що більш специфічний селектор автоматично переможе загальне правило, якщо загальне правило містить `!important`.
 
-## Модель викладання на сервер
+## Постійність змін через OCMOD
 
-Під час роботи з critical CSS зазвичай на сервер завантажується змінений OCMOD XML.
+Не можна редагувати `storage/modification/` напряму.
 
-Локальні `critical-*.css` використовуються як вихідні файли для розробки та не зобов’язані бути на сервері.
+Будь-яка правка, яка має пережити OCMOD Refresh, повинна існувати у вихідному файлі, PHP loader або OCMOD XML.
 
-Після зміни OCMOD:
+`storage/modification/` використовується тільки для перевірки результату застосування модифікаторів.
 
-1. завантажити XML;
+## Модель викладання на server
+
+Для нової архітектури на production повинні бути присутні щонайменше:
+
+- `system/library/wdh/critical_css.php`;
+- потрібні `catalog/view/theme/tt_uren1/stylesheet/wdh/critical-*.css`;
+- встановлений `system/wdh_critical_css_loader.ocmod.xml`.
+
+Після зміни loader OCMOD:
+
+1. встановити або оновити OCMOD;
 2. виконати OCMOD Refresh;
-3. очистити compiled Twig/cache за потреби;
-4. перевірити live HTML;
-5. перевірити візуальний рендер;
-6. перевірити Console;
-7. лише після цього перевіряти PageSpeed.
+3. очистити Twig/modification cache за потреби;
+4. перевірити modified controller і modified Twig;
+5. перевірити live HTML;
+6. перевірити візуальний рендер;
+7. перевірити Console;
+8. лише після цього перевіряти PageSpeed.
 
-## Заплановане покращення
+Після зміни тільки `.css` source-файлу OCMOD Refresh не потрібен, якщо структура інтеграції loader-а не змінювалася.
 
-Потрібно зробити невеликий build/sync script, який автоматично вставлятиме вміст локальних critical CSS файлів у відповідні inline-блоки OCMOD.
+## Deployment-пакування
 
-Мета — усунути ручне дублювання й зробити локальні CSS-файли єдиним практичним source of truth.
+Поточний пілот допускає ручне завантаження `critical_css.php` та `.css` source-файлів на сервер.
+
+Довгостроково бажано, щоб installer-пакет містив не лише `install.xml`, а й файли, які повинні бути розгорнуті на production, наприклад через `upload/` структуру пакета.
+
+Це зменшить ризик ситуації, коли OCMOD уже активний, але loader або CSS source-файл ще не завантажений.
+
+## Правило подальшої роботи
+
+До завершення міграції старий `wdh_category_critical_css.ocmod.xml` залишається активним.
+
+Кожен наступний фрагмент переноситься окремо і видаляється зі старого XML тільки після live-перевірки нового source-файлу.
+
+Не потрібно одночасно:
+
+- переписувати весь critical CSS;
+- міняти desktop;
+- переносити deferred CSS;
+- виконувати нову PageSpeed-оптимізацію.
+
+Спочатку потрібно безпечно розділити поточний моноліт на підтримувані source-файли та довести нову архітектуру до стабільного стану.
