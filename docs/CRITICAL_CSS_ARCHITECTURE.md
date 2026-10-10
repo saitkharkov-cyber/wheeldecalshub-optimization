@@ -349,3 +349,40 @@ Chrome Coverage використовується як фільтр для фор
 - виконувати нову PageSpeed-оптимізацію.
 
 Спочатку потрібно безпечно розділити поточний моноліт на підтримувані source-файли та довести нову архітектуру до стабільного стану.
+
+## Кешування runtime critical CSS
+
+Щоб не читати та не об'єднувати source CSS-файли на кожному HTTP-запиті, loader використовує файловий кеш у `DIR_STORAGE`.
+
+Каталог кешу:
+
+`DIR_STORAGE/cache/wdh_critical_css/`
+
+Плановані файли:
+
+- `category-mobile.css`
+- `product-mobile.css`
+
+Правила складання:
+
+- `category-mobile.css = critical-common-mobile.css + critical-category-mobile.css`
+- `product-mobile.css = critical-common-mobile.css + critical-product-mobile.css`
+
+Кеш зберігає лише чистий CSS без `<style>...</style>`.
+
+### Інвалідація кешу
+
+TTL не використовується.
+
+Кеш перебудовується тільки якщо:
+
+1. cache-файл ще не існує;
+2. будь-який source CSS-файл має `filemtime()` новіший за cache-файл.
+
+Якщо source CSS не змінювався, loader читає вже готовий cache-файл і не виконує повторне складання.
+
+Якщо page-specific source-файл ще відсутній, допускається складання лише з `critical-common-mobile.css`.
+
+Якщо source-файл тимчасово недоступний, існуючий валідний кеш не повинен перезаписуватися порожнім вмістом.
+
+Обгортка `<style>` формується loader-ом уже під час повернення результату в шаблон.
