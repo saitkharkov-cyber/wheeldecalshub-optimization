@@ -765,7 +765,7 @@ h6{font-size:24px!important;}
 </operation>
 <operation>
 <search><![CDATA[<link href="catalog/view/javascript/bootstrap/css/bootstrap.min.css" rel="stylesheet" media="screen" />]]></search>
-<add position="replace"><![CDATA[{% if class|slice(0, 16) == 'product-category' %}<template class="wdh-deferred-css"><link href="catalog/view/javascript/bootstrap/css/bootstrap.min.css" rel="stylesheet" media="screen" /></template>{% else %}<link href="catalog/view/javascript/bootstrap/css/bootstrap.min.css" rel="stylesheet" media="screen" />{% endif %}]]></add>
+<add position="replace"><![CDATA[{% if class|slice(0, 16) == 'product-category' or class|slice(0, 15) == 'product-product' %}<template class="wdh-deferred-css"><link href="catalog/view/javascript/bootstrap/css/bootstrap.min.css" rel="stylesheet" media="screen" /></template>{% else %}<link href="catalog/view/javascript/bootstrap/css/bootstrap.min.css" rel="stylesheet" media="screen" />{% endif %}]]></add>
 </operation>
 <operation>
 <search><![CDATA[<link href="{{ style.href }}" type="text/css" rel="{{ style.rel }}" media="{{ style.media }}" />]]></search>
