@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<modification>
+  <name>WDH Critical CSS Loader</name>
+  <code>wdh_critical_css_loader</code>
+  <version>1.0</version>
+  <author>WDH</author>
+  <file path="catalog/controller/common/header.php">
+    <operation>
+      <search><![CDATA[$data['scripts'] = $this->document->getScripts('header');]]></search>
+      <add position="after"><![CDATA[
+        require_once(DIR_SYSTEM . 'library/wdh/critical_css.php');
+        $wdh_route = isset($this->request->get['route']) ? $this->request->get['route'] : 'common/home';
+        $data['wdh_critical_css'] = WdhCriticalCss::buildMobile($wdh_route);
+]]></add>
+    </operation>
+  </file>
+  <file path="catalog/view/theme/tt_uren1/template/plaza/page_section/header_mobile.twig">
+    <operation>
+      <search><![CDATA[<base href="{{ base }}" />]]></search>
+      <add position="after"><![CDATA[
+{% if wdh_critical_css %}{{ wdh_critical_css|raw }}{% endif %}
+]]></add>
+    </operation>
+  </file>
+</modification>
+
+
+
