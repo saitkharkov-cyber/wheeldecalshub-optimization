@@ -81,7 +81,14 @@ class WdhCriticalCss {
             return $css === '' ? '' : '<style id="wdh-critical-mobile" media="(max-width:991px)">' . "\n" . $css . "\n" . '</style>';
         }
 
-        $sources = array($common);
+        $sources = array();
+        if ($route === 'product/category') {
+            $bestin = $base . 'bestin.css';
+            if (is_file($bestin)) {
+                $sources[] = $bestin;
+            }
+        }
+        $sources[] = $common;
         if (is_file($specific)) {
             $sources[] = $specific;
         }
