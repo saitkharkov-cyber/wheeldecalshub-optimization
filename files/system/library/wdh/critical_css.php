@@ -57,6 +57,20 @@ class WdhCriticalCss {
         return $css;
     }
 
+    public static function buildDesktop($route) {
+        if ($route !== 'product/category') {
+            return '';
+        }
+
+        $base = DIR_APPLICATION . 'view/theme/tt_uren1/stylesheet/wdh/';
+        $css = self::getCachedCss('category-desktop.css', array($base . 'critical-desktop.css'));
+
+        if ($css === '') {
+            return '';
+        }
+
+        return '<style id="wdh-critical-desktop" media="(min-width:992px)">' . "\n" . $css . "\n" . '</style>';
+    }
     public static function buildMobile($route) {
         if ($route !== 'product/category' && $route !== 'product/product') {
             return '';

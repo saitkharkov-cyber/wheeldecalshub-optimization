@@ -10,7 +10,8 @@
       <add position="after"><![CDATA[
         require_once(DIR_SYSTEM . 'library/wdh/critical_css.php');
         $wdh_route = isset($this->request->get['route']) ? $this->request->get['route'] : 'common/home';
-        $data['wdh_critical_css'] = WdhCriticalCss::buildMobile($wdh_route);
+        $data['wdh_critical_mobile_css'] = WdhCriticalCss::buildMobile($wdh_route);
+        $data['wdh_critical_desktop_css'] = WdhCriticalCss::buildDesktop($wdh_route);
 ]]></add>
     </operation>
   </file>
@@ -18,11 +19,18 @@
     <operation>
       <search><![CDATA[<base href="{{ base }}" />]]></search>
       <add position="after"><![CDATA[
-{% if wdh_critical_css %}{{ wdh_critical_css|raw }}{% endif %}
+{% if wdh_critical_mobile_css %}{{ wdh_critical_mobile_css|raw }}{% endif %}
 ]]></add>
     </operation>
   </file>
-</modification>
+  <file path="catalog/view/theme/tt_uren1/template/common/header.twig">
+    <operation>
+      <search><![CDATA[<base href="{{ base }}" />]]></search>
+      <add position="after"><![CDATA[
+{% if wdh_critical_desktop_css %}{{ wdh_critical_desktop_css|raw }}{% endif %}
+]]></add>
+    </operation>
+  </file></modification>
 
 
 
