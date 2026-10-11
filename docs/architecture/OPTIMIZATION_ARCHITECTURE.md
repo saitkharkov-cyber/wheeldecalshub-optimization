@@ -61,6 +61,8 @@ OCMOD Refresh
         ↓
 storage/modification
         ↓
+PHP integration / WDH runtime library
+        ↓
 Twig compilation/cache
         ↓
 Rendered HTML
@@ -193,55 +195,318 @@ if ($detect->isTablet()) {
 
 ---
 
-## 6. Critical CSS architecture
+## 6. Critical CSS architecture і PHP-бібліотека WDH
 
-Critical CSS фізично розділено за типом пристрою й route.
+Critical CSS у проєкті не зберігається як велика inline-громада всередині OCMOD. Архітектура навмисно розділена на три шари:
 
-Основний loader:
+```text
+CSS source files
+        ↓
+system/library/wdh/critical_css.php
+        ↓
+system/wdh_critical_css_loader.ocmod.xml
+        ↓
+header controller / Twig
+        ↓
+inline <style> у rendered HTML
+```
+
+Це одна з ключових частин усієї оптимізації. Її не можна замінювати прямим копіюванням CSS назад у XML без окремого архітектурного рішення.
+
+### 6.1. PHP-бібліотека `WdhCriticalCss`
+
+Основний runtime loader:
 
 ```text
 system/library/wdh/critical_css.php
 ```
 
-Ключові функції:
+У ньому визначений клас:
 
 ```php
-buildMobile($route)
-buildDesktop($route)
+class WdhCriticalCss
 ```
 
-Integrator:
+Бібліотека відповідає за:
+
+- читання source CSS-файлів;
+- складання common + route-specific critical CSS у правильному порядку;
+- окрему збірку mobile та desktop critical CSS;
+- кешування вже зібраного CSS;
+- автоматичну перебудову кешу, якщо source CSS новіший за cache;
+- fallback на останній валідний cache у частині failure-сценаріїв;
+- повернення готового `<style>` для вставки в Twig.
+
+Тобто OCMOD тут **не зберігає сам CSS**. OCMOD лише підключає PHP-бібліотеку та передає її результат у шаблон.
+
+### 6.2. `read($file)`
+
+Метод:
+
+```php
+public static function read($file)
+```
+
+повертає вміст файлу через `file_get_contents()` лише якщо файл існує. Якщо файлу немає — повертається порожній рядок.
+
+Це базовий безпечний read-layer для решти бібліотеки.
+
+### 6.3. Внутрішній cache critical CSS
+
+Бібліотека використовує окремий runtime cache:
+
+```text
+DIR_STORAGE . 'cache/wdh_critical_css/'
+```
+
+Основні cache-файли:
+
+```text
+category-mobile.css
+product-mobile.css
+category-desktop.css
+```
+
+Метод:
+
+```php
+private static function getCachedCss($cacheName, $sources)
+```
+
+перевіряє `filemtime()` cache-файлу та всіх source-файлів.
+
+Якщо хоча б один source CSS новіший за cache, bundle перебудовується автоматично.
+
+Це означає: після звичайної зміни source CSS не треба вручну генерувати inline CSS у XML. Runtime library сама збере актуальний bundle.
+
+Запис cache робиться через тимчасовий файл:
+
+```text
+<cacheFile>.tmp.<pid>
+```
+
+із `LOCK_EX`, після чого виконується `rename()` у фінальний cache-файл. Це зменшує ризик віддати користувачу частково записаний CSS при паралельних запитах.
+
+### 6.4. Failure/fallback behavior
+
+У бібліотеці навмисно є захисна поведінка.
+
+Якщо під час rebuild один із очікуваних source-файлів раптово відсутній, але вже існує попередній cache, бібліотека може повернути старий cache замість порожнього critical CSS.
+
+Якщо cache directory не вдалося створити, бібліотека все одно може повернути вже зібраний CSS поточного запиту або наявний cache.
+
+Це важливо для production safety: тимчасова проблема файлової системи не повинна автоматично перетворювати сторінку на unstyled first paint.
+
+Але цей fallback не можна сприймати як нормальний режим роботи. Якщо source-файл реально втрачено — потрібно виправити source, а не покладатися на старий cache.
+
+### 6.5. `buildMobile($route)`
+
+Mobile builder працює лише для:
+
+```text
+product/category
+product/product
+```
+
+Для інших route він повертає порожній рядок.
+
+Base directory:
+
+```text
+catalog/view/theme/tt_uren1/stylesheet/wdh/
+```
+
+Common source:
+
+```text
+critical-common-mobile.css
+```
+
+Для category додається:
+
+```text
+critical-category-mobile.css
+```
+
+і cache:
+
+```text
+category-mobile.css
+```
+
+Для product додається:
+
+```text
+critical-product-mobile.css
+```
+
+і cache:
+
+```text
+product-mobile.css
+```
+
+Для mobile category перед common CSS бібліотека також може додати:
+
+```text
+bestin.css
+```
+
+якщо файл існує.
+
+Фінальний HTML повертається у вигляді:
+
+```html
+<style id="wdh-critical-mobile" media="(max-width:991px)">
+...
+</style>
+```
+
+Тобто mobile critical CSS route-aware і не повинен перетворюватися на один універсальний моноліт для всіх сторінок.
+
+### 6.6. `buildDesktop($route)`
+
+Desktop builder наразі працює лише для:
+
+```text
+product/category
+```
+
+Для інших route повертається порожній рядок.
+
+Використовується source:
+
+```text
+critical-desktop.css
+```
+
+і cache:
+
+```text
+category-desktop.css
+```
+
+Фінальний HTML:
+
+```html
+<style id="wdh-critical-desktop" media="(min-width:992px)">
+...
+</style>
+```
+
+Tablet у поточній архітектурі належить до desktop-гілки.
+
+### 6.7. OCMOD integrator
+
+Інтеграцію PHP-бібліотеки виконує:
 
 ```text
 system/wdh_critical_css_loader.ocmod.xml
 ```
 
-### 6.1. Mobile
-
-Mobile critical CSS складається з окремих файлів, зокрема:
+Він модифікує:
 
 ```text
-catalog/view/theme/tt_uren1/stylesheet/wdh/critical-common-mobile.css
-catalog/view/theme/tt_uren1/stylesheet/wdh/critical-category-mobile.css
-catalog/view/theme/tt_uren1/stylesheet/wdh/critical-product-mobile.css
+catalog/controller/common/header.php
 ```
 
-### 6.2. Desktop/tablet
+і після отримання header scripts виконує приблизно таку логіку:
 
-Tablet згрупований з desktop.
+```php
+require_once(DIR_SYSTEM . 'library/wdh/critical_css.php');
+$wdh_route = isset($this->request->get['route']) ? $this->request->get['route'] : 'common/home';
+$data['wdh_critical_mobile_css'] = WdhCriticalCss::buildMobile($wdh_route);
+$data['wdh_critical_desktop_css'] = WdhCriticalCss::buildDesktop($wdh_route);
+```
 
-Desktop critical CSS підключається окремо й не повинен змішуватися з mobile critical CSS.
+Далі цей самий OCMOD додає output у Twig після:
 
-### 6.3. Source of truth
+```html
+<base href="{{ base }}" />
+```
 
-Напрямок архітектури — **CSS-файли мають бути source of truth**.
+Mobile header:
+
+```text
+catalog/view/theme/tt_uren1/template/plaza/page_section/header_mobile.twig
+```
+
+отримує:
+
+```twig
+{% if wdh_critical_mobile_css %}{{ wdh_critical_mobile_css|raw }}{% endif %}
+```
+
+Desktop header:
+
+```text
+catalog/view/theme/tt_uren1/template/common/header.twig
+```
+
+отримує:
+
+```twig
+{% if wdh_critical_desktop_css %}{{ wdh_critical_desktop_css|raw }}{% endif %}
+```
+
+### 6.8. Source of truth
+
+Source of truth для critical CSS — файли в:
+
+```text
+catalog/view/theme/tt_uren1/stylesheet/wdh/
+```
+
+зокрема:
+
+```text
+critical-common-mobile.css
+critical-category-mobile.css
+critical-product-mobile.css
+critical-desktop.css
+bestin.css
+```
 
 Не повертатися до ручного паралельного редагування:
 
-- CSS-файлу;
-- inline-копії того самого CSS всередині OCMOD.
+- CSS source-файлу;
+- inline-копії того самого CSS всередині OCMOD/XML.
 
-Для legacy-ділянок допускається тимчасова сумісність, але майбутня ціль — генерація inline critical CSS зі source CSS автоматично.
+Саме PHP-бібліотека була введена, щоб прибрати цю дубльовану модель і винести великі стабільні CSS-блоки з XML у нормальні source-файли.
+
+### 6.9. Як безпечно змінювати critical CSS
+
+Нормальний workflow:
+
+1. змінити потрібний source CSS у `stylesheet/wdh/`;
+2. перевірити exact diff;
+3. завантажити CSS на сервер;
+4. переконатися, що його `mtime` новіший за відповідний WDH cache;
+5. відкрити потрібний route — бібліотека перебудує cache автоматично;
+6. перевірити rendered `<style id="wdh-critical-mobile">` або `<style id="wdh-critical-desktop">`;
+7. перевірити first render / CLS / PSI.
+
+OCMOD Refresh для самої зміни CSS source зазвичай не потрібен, якщо не змінювалася інтеграційна логіка або Twig/controller.
+
+Якщо є підозра на stale WDH cache, спочатку локалізувати конкретний файл у:
+
+```text
+storage/cache/wdh_critical_css/
+```
+
+і видаляти лише потрібний bundle, а не весь cache сайту.
+
+### 6.10. Що не можна робити з PHP-бібліотекою
+
+Без окремого рішення не можна:
+
+- видаляти `system/library/wdh/critical_css.php` як «зайвий проміжний шар»;
+- переносити великі CSS-блоки назад у `wdh_critical_css_loader.ocmod.xml`;
+- дублювати один і той самий critical CSS одночасно в PHP, XML і CSS source;
+- міняти порядок `bestin.css → common → route-specific` без візуальної та PSI-перевірки;
+- міняти media boundaries `991/992` без перевірки tablet behavior;
+- редагувати `storage/cache/wdh_critical_css/*.css` як source;
+- вважати cached bundle джерелом істини.
 
 ---
 
@@ -506,7 +771,8 @@ Bestin використовує окремий ранній inline/base64 під
 - browser cache;
 - OpenCart cache;
 - OCMOD generated files;
-- Twig compiled cache.
+- Twig compiled cache;
+- WDH critical CSS runtime cache (`storage/cache/wdh_critical_css/`).
 
 ### 13.1. Physical є, generated є, browser не бачить
 
@@ -522,6 +788,17 @@ Bestin використовує окремий ранній inline/base64 під
 6. перезавантажити production.
 
 Не очищати весь cache без необхідності.
+
+### 13.2. Critical CSS не оновився після зміни source
+
+Перевірити:
+
+1. source-файл у `stylesheet/wdh/`;
+2. `filemtime()` source і відповідного cache bundle;
+3. файл у `storage/cache/wdh_critical_css/`;
+4. rendered `<style id="wdh-critical-mobile">` / `<style id="wdh-critical-desktop">`.
+
+Якщо потрібно примусово перебудувати bundle, видалити лише відповідний WDH cache-файл і повторно відкрити route.
 
 ---
 
@@ -541,6 +818,12 @@ Bestin використовує окремий ранній inline/base64 під
 
 ```text
 physical → storage/modification → Twig cache → rendered HTML
+```
+
+Для critical CSS окремо враховувати runtime layer:
+
+```text
+source CSS → WdhCriticalCss → storage/cache/wdh_critical_css → rendered <style>
 ```
 
 ### 14.4. Mobile template не використовується
@@ -579,6 +862,9 @@ physical → storage/modification → Twig cache → rendered HTML
 - повертати blocking jQuery;
 - прибирати `wdhWhenJQuery` wrappers;
 - змінювати OCMOD search-якорі без пошуку залежних operations;
+- видаляти або обходити `system/library/wdh/critical_css.php`;
+- переносити critical CSS назад у великі inline XML-блоки;
+- редагувати `storage/cache/wdh_critical_css/*.css` як source;
 - повертати mobile DOM relocation через jQuery;
 - додавати main product image `width/height` із `thumb_dimension`;
 - реактивувати окремий `product_mobile.twig`;
@@ -597,10 +883,11 @@ physical → storage/modification → Twig cache → rendered HTML
 - cleanup Magnific Popup / legacy product scripts;
 - cleanup datetime/upload logic;
 - спрощення deferred JS architecture;
-- `sync-critical-css.ps1` для єдиного source of truth;
 - подальший responsive image / `srcset` / WebP pipeline;
 - поступове зменшення legacy OCMOD моноліту;
 - розслідування окремого інциденту з admin permissions, якщо він повториться.
+
+Critical CSS source-of-truth уже реалізований через PHP-бібліотеку `WdhCriticalCss`; окремий sync-script для дублювання CSS у XML більше не є цільовою архітектурою.
 
 Ці задачі не повинні виконуватися шляхом повернення blocking assets або руйнування вже стабільних Core Web Vitals.
 
@@ -639,8 +926,9 @@ CLS: 0
 - переконатися, що в commit немає backup-файлів;
 - перевірити OCMOD XML на валідність;
 - перевірити UTF-8 без BOM для нових OCMOD XML;
-- зробити OCMOD Refresh;
+- зробити OCMOD Refresh, якщо змінювалась OCMOD/integration-логіка;
 - перевірити generated files;
+- для critical CSS перевірити WDH runtime bundle;
 - перевірити Console;
 - перевірити ключовий DOM;
 - при зміні first-render behavior — зробити mobile PSI.
@@ -654,6 +942,7 @@ CLS: 0
 ```text
 OpenCart / Plaza
 + OCMOD
++ WDH PHP runtime library
 + server-side mobile branching
 + critical CSS
 + deferred CSS/JS
@@ -664,6 +953,6 @@ OpenCart / Plaza
 
 Головний принцип підтримки цієї системи:
 
-> **Не змінювати порядок завантаження, DOM structure або OCMOD anchors, не розуміючи, який шар оптимізації від них залежить.**
+> **Не змінювати порядок завантаження, DOM structure, PHP integration або OCMOD anchors, не розуміючи, який шар оптимізації від них залежить.**
 
-Якщо нова зміна «виправляє» локальну помилку шляхом повернення старої blocking/legacy поведінки, її потрібно вважати підозрілою до повної перевірки Core Web Vitals і generated output.
+Якщо нова зміна «виправляє» локальну помилку шляхом повернення старої blocking/legacy поведінки або обходу `WdhCriticalCss`, її потрібно вважати підозрілою до повної перевірки Core Web Vitals і generated output.
