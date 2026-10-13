@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<modification>
+<code>wdh_product_recaptcha_lazy</code>
+<name>WDH Product Lazy reCAPTCHA</name>
+<version>1.0</version>
+<author>WheelDecalsHub Optimization</author>
+<file path="catalog/view/theme/default/template/extension/captcha/google.twig">
+<operation>
+<search><![CDATA[<script src="//www.google.com/recaptcha/api.js" type="text/javascript"></script>]]></search>
+<add position="replace"><![CDATA[{% if route|slice(0, 15) == 'product/product' %}
+<script>
+(function(){
+var loaded=false;
+function loadRecaptcha(){if(loaded||window.grecaptcha||document.querySelector('script[data-wdh-recaptcha]'))return;loaded=true;var s=document.createElement('script');s.src='https://www.google.com/recaptcha/api.js';s.async=true;s.defer=true;s.setAttribute('data-wdh-recaptcha','1');document.head.appendChild(s);}
+var tab=document.querySelector('a[href="#tab-review"]');
+if(tab){tab.addEventListener('click',loadRecaptcha,{once:true});}
+if(location.hash==='#tab-review'){loadRecaptcha();}
+})();
+</script>
+{% else %}
+<script src="//www.google.com/recaptcha/api.js" type="text/javascript"></script>
+{% endif %}]]></add>
+</operation>
+</file>
+</modification>

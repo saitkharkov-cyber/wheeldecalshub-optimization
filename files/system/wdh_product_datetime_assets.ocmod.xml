@@ -1,0 +1,59 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<modification>
+<code>wdh_product_datetime_assets</code>
+<name>WDH Product Conditional Datetime Assets</name>
+<version>1.0</version>
+<author>WheelDecalsHub Optimization</author>
+<file path="catalog/controller/product/product.php">
+<operation>
+<search><![CDATA[$this->document->addScript('catalog/view/javascript/jquery/datetimepicker/moment/moment.min.js');]]></search>
+<add position="replace"><![CDATA[]]></add>
+</operation>
+<operation>
+<search><![CDATA[$this->document->addScript('catalog/view/javascript/jquery/datetimepicker/moment/moment-with-locales.min.js');]]></search>
+<add position="replace"><![CDATA[]]></add>
+</operation>
+<operation>
+<search><![CDATA[$this->document->addScript('catalog/view/javascript/jquery/datetimepicker/bootstrap-datetimepicker.min.js');]]></search>
+<add position="replace"><![CDATA[]]></add>
+</operation>
+<operation>
+<search><![CDATA[$this->document->addStyle('catalog/view/javascript/jquery/datetimepicker/bootstrap-datetimepicker.min.css');]]></search>
+<add position="replace"><![CDATA[]]></add>
+</operation>
+<operation>
+<search><![CDATA[$data['options'] = array();]]></search>
+<add position="after"><![CDATA[$wdh_has_datetime_option = false;]]></add>
+</operation>
+<operation>
+<search><![CDATA[foreach ($this->model_catalog_product->getProductOptions($this->request->get['product_id']) as $option) {]]></search>
+<add position="after"><![CDATA[if (in_array($option['type'], array('date', 'datetime', 'time'), true)) { $wdh_has_datetime_option = true; }]]></add>
+</operation>
+<operation>
+<search><![CDATA[if ($product_info['minimum']) {]]></search>
+<add position="before"><![CDATA[$data['wdh_has_datetime_option'] = $wdh_has_datetime_option;
+if ($wdh_has_datetime_option) {
+    $this->document->addScript('catalog/view/javascript/jquery/datetimepicker/moment/moment.min.js');
+    $this->document->addScript('catalog/view/javascript/jquery/datetimepicker/moment/moment-with-locales.min.js');
+    $this->document->addScript('catalog/view/javascript/jquery/datetimepicker/bootstrap-datetimepicker.min.js');
+    $this->document->addStyle('catalog/view/javascript/jquery/datetimepicker/bootstrap-datetimepicker.min.css');
+}]]></add>
+</operation>
+</file>
+<file path="catalog/view/theme/tt_uren1/template/product/product.twig">
+<operation>
+<search><![CDATA[$('.date').datetimepicker({]]></search>
+<add position="before"><![CDATA[{% if wdh_has_datetime_option %}]]></add>
+</operation>
+<operation>
+<search><![CDATA[$('button[id^=\'button-upload\']').on('click', function() {]]></search>
+<add position="before"><![CDATA[{% endif %}
+wdhWhenJQuery(function($){]]></add>
+</operation>
+<operation>
+<search><![CDATA[$(node).parent().find('input').val(json['code']);]]></search>
+<add position="after" offset="9"><![CDATA[
+});]]></add>
+</operation>
+</file>
+</modification>

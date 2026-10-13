@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<modification>
+  <name>WDH Home Mobile Slider Images</name>
+  <code>wdh_home_mobile_slider_images</code>
+  <version>1.0</version>
+  <author>WheelDecalsHub Optimization</author>
+
+  <file path="catalog/controller/extension/module/ptslider.php">
+    <operation>
+      <search><![CDATA[$this->load->model('tool/image');]]></search>
+      <add position="after"><![CDATA[
+
+        if (!class_exists('Mobile_Detect')) {
+            require_once(DIR_SYSTEM . 'Mobile_Detect.php');
+        }
+
+        $wdh_mobile_detect = new Mobile_Detect;
+        $wdh_route = isset($this->request->get['route']) ? (string)$this->request->get['route'] : 'common/home';
+        $wdh_mobile_home = ($wdh_route === 'common/home' && $wdh_mobile_detect->isMobile() && !$wdh_mobile_detect->isTablet());
+
+]]></add>
+    </operation>
+
+    <operation>
+      <search><![CDATA['image'         => $this->model_tool_image->resize($result['image'], $setting['width'], $setting['height']),]]></search>
+      <add position="replace"><![CDATA['image'         => $wdh_mobile_home
+                            ? $this->model_tool_image->resizeWebp($result['image'], 435, 151, 74)
+                            : $this->model_tool_image->resize($result['image'], $setting['width'], $setting['height']),]]></add>
+    </operation>
+  </file>
+</modification>

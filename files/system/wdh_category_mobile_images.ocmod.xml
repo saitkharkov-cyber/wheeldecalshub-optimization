@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<modification>
+  <name>WDH Category Mobile Product Images</name>
+  <code>wdh_category_mobile_images</code>
+  <version>1.0</version>
+  <author>WheelDecalsHub Optimization</author>
+  <file path="catalog/controller/product/category.php">
+    <operation>
+      <search><![CDATA[$this->load->model('tool/image');]]></search>
+      <add position="after"><![CDATA[
+
+if (!class_exists('Mobile_Detect')) {
+require_once(DIR_SYSTEM . 'Mobile_Detect.php');
+}
+$wdh_mobile_detect = new Mobile_Detect;
+$wdh_is_mobile = (!$wdh_mobile_detect->isTablet() && $wdh_mobile_detect->isMobile());
+		$wdh_product_image_width = $wdh_is_mobile ? 180 : $this->config->get('theme_' . $this->config->get('config_theme') . '_image_product_width');
+$wdh_product_image_height = $wdh_is_mobile ? 180 : $this->config->get('theme_' . $this->config->get('config_theme') . '_image_product_height');
+if ($wdh_is_mobile) {
+    $wdh_img_effect_config = $this->config->get('module_ptcontrolpanel_img_effect');
+    if (is_array($wdh_img_effect_config)) {
+        $wdh_img_effect_config[$this->config->get('config_store_id')] = false;
+        $this->config->set('module_ptcontrolpanel_img_effect', $wdh_img_effect_config);
+    }
+}
+]]></add>
+    </operation>
+    <operation>
+      <search><![CDATA[$image = $this->model_tool_image->resize($result['image'], $this->config->get('theme_' . $this->config->get('config_theme') . '_image_product_width'), $this->config->get('theme_' . $this->config->get('config_theme') . '_image_product_height'));]]></search>
+      <add position="replace"><![CDATA[if ($wdh_is_mobile) {
+$this->model_tool_image->resizeWebp($result['image'], 320, 320);
+$image = $this->model_tool_image->resizeWebp($result['image'], $wdh_product_image_width, $wdh_product_image_height);
+} else {
+$image = $this->model_tool_image->resize($result['image'], $wdh_product_image_width, $wdh_product_image_height);
+}]]></add>
+    </operation>
+    <operation>
+      <search><![CDATA[$image = $this->model_tool_image->resize('placeholder.png', $this->config->get('theme_' . $this->config->get('config_theme') . '_image_product_width'), $this->config->get('theme_' . $this->config->get('config_theme') . '_image_product_height'));]]></search>
+      <add position="replace"><![CDATA[if ($wdh_is_mobile) {
+$this->model_tool_image->resizeWebp('placeholder.png', 320, 320);
+$image = $this->model_tool_image->resizeWebp('placeholder.png', $wdh_product_image_width, $wdh_product_image_height);
+} else {
+$image = $this->model_tool_image->resize('placeholder.png', $wdh_product_image_width, $wdh_product_image_height);
+}]]></add>
+    </operation>
+  </file>
+  <file path="catalog/controller/plaza/filter.php">
+    <operation>
+      <search><![CDATA[$this->load->model('tool/image');]]></search>
+      <add position="after"><![CDATA[
+
+        if (!class_exists('Mobile_Detect')) {
+            require_once(DIR_SYSTEM . 'Mobile_Detect.php');
+        }
+        $wdh_mobile_detect = new Mobile_Detect;
+        $wdh_is_mobile = (!$wdh_mobile_detect->isTablet() && $wdh_mobile_detect->isMobile());
+		$wdh_product_image_width = $wdh_is_mobile ? 180 : $this->config->get('theme_' . $this->config->get('config_theme') . '_image_product_width');
+        $wdh_product_image_height = $wdh_is_mobile ? 180 : $this->config->get('theme_' . $this->config->get('config_theme') . '_image_product_height');
+if ($wdh_is_mobile) {
+    $wdh_img_effect_config = $this->config->get('module_ptcontrolpanel_img_effect');
+    if (is_array($wdh_img_effect_config)) {
+        $wdh_img_effect_config[$this->config->get('config_store_id')] = false;
+        $this->config->set('module_ptcontrolpanel_img_effect', $wdh_img_effect_config);
+    }
+}
+]]></add>
+    </operation>
+    <operation>
+      <search><![CDATA[$image = $this->model_tool_image->resize($result['image'], $this->config->get('theme_' . $this->config->get('config_theme') . '_image_product_width'), $this->config->get('theme_' . $this->config->get('config_theme') . '_image_product_height'));]]></search>
+      <add position="replace"><![CDATA[if ($wdh_is_mobile) {
+$this->model_tool_image->resizeWebp($result['image'], 320, 320);
+$image = $this->model_tool_image->resizeWebp($result['image'], $wdh_product_image_width, $wdh_product_image_height);
+} else {
+$image = $this->model_tool_image->resize($result['image'], $wdh_product_image_width, $wdh_product_image_height);
+}]]></add>
+    </operation>
+    <operation>
+      <search><![CDATA[$image = $this->model_tool_image->resize('placeholder.png', $this->config->get('theme_' . $this->config->get('config_theme') . '_image_product_width'), $this->config->get('theme_' . $this->config->get('config_theme') . '_image_product_height'));]]></search>
+      <add position="replace"><![CDATA[if ($wdh_is_mobile) {
+$this->model_tool_image->resizeWebp('placeholder.png', 320, 320);
+$image = $this->model_tool_image->resizeWebp('placeholder.png', $wdh_product_image_width, $wdh_product_image_height);
+} else {
+$image = $this->model_tool_image->resize('placeholder.png', $wdh_product_image_width, $wdh_product_image_height);
+}]]></add>
+    </operation>
+  </file>
+</modification>

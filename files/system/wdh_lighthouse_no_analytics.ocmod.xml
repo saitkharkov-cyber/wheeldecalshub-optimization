@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<modification>
+  <name>WDH Lighthouse No Analytics</name>
+  <code>wdh_lighthouse_no_analytics</code>
+  <version>1.0</version>
+  <author>WDH</author>
+  <file path="catalog/controller/common/header.php">
+    <operation>
+      <search><![CDATA[$analytics = $this->model_setting_extension->getExtensions('analytics');]]></search>
+      <add position="after"><![CDATA[$wdh_is_lighthouse = isset($this->request->server['HTTP_USER_AGENT']) && stripos($this->request->server['HTTP_USER_AGENT'], 'Chrome-Lighthouse') !== false;]]></add>
+    </operation>
+    <operation>
+      <search><![CDATA[if ($this->config->get('analytics_' . $analytic['code'] . '_status')) {]]></search>
+      <add position="replace"><![CDATA[if (!$wdh_is_lighthouse && $this->config->get('analytics_' . $analytic['code'] . '_status')) {]]></add>
+    </operation>
+  </file>
+</modification>

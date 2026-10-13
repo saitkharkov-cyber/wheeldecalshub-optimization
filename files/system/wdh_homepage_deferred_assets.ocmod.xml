@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<modification>
+  <name>WDH Homepage Deferred Assets</name>
+  <code>wdh_homepage_deferred_assets</code>
+  <version>1.0</version>
+  <author>WDH</author>
+
+  <file path="catalog/view/theme/tt_uren1/template/plaza/module/ptslider.twig">
+    <operation>
+      <search><![CDATA[$(window).load(function() {]]></search>
+      <add position="before"><![CDATA[wdhWhenJQuery(function($){
+]]></add>
+    </operation>
+
+    <operation>
+      <search><![CDATA[</script>]]></search>
+      <add position="before"><![CDATA[});
+]]></add>
+    </operation>
+  </file>
+</modification>

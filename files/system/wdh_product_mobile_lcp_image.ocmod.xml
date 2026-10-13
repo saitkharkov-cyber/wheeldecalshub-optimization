@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<modification>
+  <name>WDH Product Mobile LCP Image</name>
+  <code>wdh_product_mobile_lcp_image</code>
+  <version>1.0</version>
+  <author>WheelDecalsHub Optimization</author>
+
+  <file path="catalog/controller/product/product.php">
+    <operation>
+      <search><![CDATA[$data['thumb'] = $this->model_tool_image->resize($product_info['image'], $this->config->get('theme_' . $this->config->get('config_theme') . '_image_thumb_width'), $this->config->get('theme_' . $this->config->get('config_theme') . '_image_thumb_height'));]]></search>
+      <add position="replace"><![CDATA[
+if (!class_exists('Mobile_Detect')) {
+    require_once(DIR_SYSTEM . 'Mobile_Detect.php');
+}
+
+$wdh_mobile_detect = new Mobile_Detect;
+
+if (!$wdh_mobile_detect->isTablet() && $wdh_mobile_detect->isMobile()) {
+    $data['thumb'] = $this->model_tool_image->resizeWebp($product_info['image'], 480, 480);
+} else {
+    $data['thumb'] = $this->model_tool_image->resize(
+        $product_info['image'],
+        $this->config->get('theme_' . $this->config->get('config_theme') . '_image_thumb_width'),
+        $this->config->get('theme_' . $this->config->get('config_theme') . '_image_thumb_height')
+    );
+}
+]]></add>
+    </operation>
+  </file>
+</modification>

@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="utf-8"?>
+<modification>
+  <name>WDH Mobile Deferred JS</name>
+  <code>wdh_mobile_deferred_js</code>
+  <version>1.1</version>
+  <author>WDH</author>
+
+  <file path="catalog/view/theme/tt_uren1/template/plaza/page_section/header_mobile.twig">
+  <operation>
+    <search><![CDATA[<script src="{{ script }}" ></script>]]></search>
+    <add position="replace"><![CDATA[{% if 'ultimatemenu/menu.js' not in script and ((class|slice(0, 16) != 'product-category' and class|slice(0, 15) != 'product-product' and class|slice(0, 11) != 'common-home') or 'ocdevwizard/form_builder/global.js' not in script) %}
+{% if class|slice(0, 15) == 'product-product' and (script == 'catalog/view/javascript/jquery/magnific/jquery.magnific-popup.min.js' or script == 'catalog/view/javascript/jquery/swiper/js/swiper.jquery.js' or script == 'catalog/view/javascript/plaza/swatches/swatches.js' or script == 'catalog/view/javascript/plaza/cloudzoom/cloud-zoom.1.0.2.min.js' or script == 'catalog/view/javascript/plaza/cloudzoom/zoom.js') %}
+<script src="{{ script }}" defer></script>
+{% else %}
+<script src="{{ script }}" ></script>
+{% endif %}
+{% endif %}]]></add>
+  </operation>
+</file>
+
+  <file path="catalog/view/theme/tt_uren1/template/plaza/module/ptmenu.twig">
+    <operation>
+      <search><![CDATA[{% if menu_type == "mobile" %}]]></search>
+      <add position="after"><![CDATA[
+<script>
+(function(){
+    if (!document.body || !document.body.classList.contains('mobile-layout')) return;
+    if (window.wdhMobileMenuJsLoader) return;
+    window.wdhMobileMenuJsLoader = true;
+
+    var url = 'catalog/view/javascript/plaza/ultimatemenu/menu.js',
+        code = null,
+        ready = false,
+        done = false,
+        events = ['pointerdown','touchstart','keydown','wheel'];
+
+    function prepare() {
+        fetch(url, {credentials:'same-origin'})
+            .then(function(r) {
+                if (!r.ok) throw new Error(r.status);
+                return r.text();
+            })
+            .then(function(t) {
+                code = t;
+                ready = true;
+            })
+            .catch(function() {
+                ready = false;
+            });
+    }
+
+    function activate() {
+        if (done || !ready || !window.jQuery) return;
+
+        done = true;
+
+        var s = document.createElement('script');
+        s.text = code + '\n//# sourceURL=' + url;
+        document.head.appendChild(s);
+
+        events.forEach(function(ev) {
+            window.removeEventListener(ev, activate, false);
+        });
+    }
+
+    events.forEach(function(ev) {
+        window.addEventListener(ev, activate, {passive:true});
+    });
+
+    window.addEventListener('load', prepare, {once:true});
+})();
+</script>
+      ]]></add>
+    </operation>
+  </file>
+  <file path="system/library/ocdevwizard/form_builder/modules.php">
+    <operation>
+      <search><![CDATA[if (!$results) {]]></search>
+      <add position="replace"><![CDATA[if (!$results && !(strpos($output, 'mobile-layout') !== false && (strpos($output, 'id="product-category"') !== false || strpos($output, 'id="product-product"') !== false || strpos($output, 'common-home') !== false))) {]]></add>
+    </operation>
+  </file>
+  <file path="catalog/view/theme/tt_uren1/template/plaza/page_section/header_mobile.twig">
+    <operation>
+      <search><![CDATA[<script src="catalog/view/javascript/common.js" ></script>]]></search>
+      <add position="replace"><![CDATA[{% if class|slice(0, 16) == 'product-category' or class|slice(0, 15) == 'product-product' %}
+<script src="catalog/view/javascript/common.js" defer></script>
+{% else %}
+<script src="catalog/view/javascript/common.js" ></script>
+{% endif %}]]></add>
+    </operation>
+  </file>
+  <file path="catalog/view/theme/tt_uren1/template/plaza/page_section/header_mobile.twig">
+    <operation>
+      <search><![CDATA[<script src="catalog/view/javascript/bootstrap/js/bootstrap.min.js" ></script>]]></search>
+      <add position="replace"><![CDATA[{% if class|slice(0, 16) == 'product-category' or class|slice(0, 15) == 'product-product' %}
+<script src="catalog/view/javascript/bootstrap/js/bootstrap.min.js" defer></script>
+{% else %}
+<script src="catalog/view/javascript/bootstrap/js/bootstrap.min.js" ></script>
+{% endif %}]]></add>
+    </operation>
+  </file>
+<file path="catalog/view/theme/tt_uren1/template/plaza/page_section/header_mobile.twig">
+<operation>
+<search><![CDATA[{% if class starts with 'product-category' %}]]></search>
+<add position="replace"><![CDATA[{% if class starts with 'product-category' or class starts with 'product-product' %}]]></add>
+</operation>
+</file>
+<file path="catalog/view/theme/tt_uren1/template/product/product.twig"><operation><search><![CDATA[var swiper = new Swiper('.review-images-carousel', {]]></search><add position="replace"><![CDATA[function wdhProductSwiper(selector, options) { if (document.body.classList.contains('mobile-layout')) { document.addEventListener('DOMContentLoaded', function () { new Swiper(selector, options); }); return null; } return new Swiper(selector, options); }
+  var swiper = wdhProductSwiper('.review-images-carousel', {]]></add></operation><operation><search><![CDATA[$(".related-slides").swiper({]]></search><add position="replace"><![CDATA[function wdhProductJqSwiper(selector, options) { wdhWhenJQuery(function($) { $(selector).swiper(options); }); }
+    wdhProductJqSwiper(".related-slides", {]]></add></operation><operation>
+<search><![CDATA[$('select[name=\'recurring_id\'], input[name="quantity"]').change(function(){]]></search>
+<add position="before"><![CDATA[    wdhWhenJQuery(function($){
+]]></add>
+</operation><operation><search><![CDATA[$('#recurring-description').html(json['success']);]]></search><add position="after" offset="4"><![CDATA[
+    });]]></add></operation>
+<operation>
+<search><![CDATA[$('#button-cart').on('click', function() {]]></search>
+<add position="before"><![CDATA[    wdhWhenJQuery(function($){
+]]></add>
+</operation>
+<operation>
+<search><![CDATA[$('#cart').addClass("open");]]></search>
+<add position="after" offset="7"><![CDATA[
+    });]]></add>
+</operation>
+
+<operation>
+<search><![CDATA[$('#review').delegate('.pagination a', 'click', function(e) {]]></search>
+<add position="before"><![CDATA[    wdhWhenJQuery(function($){
+]]></add>
+</operation>
+<operation>
+<search><![CDATA[$('input[name=\'rating\']:checked').prop('checked', false);]]></search>
+<add position="after" offset="4"><![CDATA[
+    });]]></add>
+</operation>
+</file></modification>
+
+
+
+

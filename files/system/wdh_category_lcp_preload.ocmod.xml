@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<modification>
+  <name>WDH Category LCP Image Preload</name>
+  <code>wdh_category_lcp_preload</code>
+  <version>1.0</version>
+  <author>WheelDecalsHub Optimization</author>
+
+  <file path="catalog/controller/product/category.php">
+    <operation>
+      <search><![CDATA[$data['products'][] = array(]]></search>
+      <add position="before"><![CDATA[
+if (!$this->registry->has('wdh_lcp_preload') && $image) {
+$this->registry->set('wdh_lcp_preload', $image);
+}
+]]></add>
+    </operation>
+  </file>
+
+  <file path="catalog/controller/common/header.php">
+    <operation>
+      <search><![CDATA[$data['links'] = $this->document->getLinks();]]></search>
+      <add position="after"><![CDATA[
+$data['wdh_lcp_preload'] = $this->registry->has('wdh_lcp_preload') ? $this->registry->get('wdh_lcp_preload') : '';
+]]></add>
+    </operation>
+  </file>
+
+  <file path="catalog/view/theme/tt_uren1/template/plaza/page_section/header_mobile.twig">
+    <operation>
+      <search><![CDATA[<base href="{{ base }}" />]]></search>
+      <add position="after"><![CDATA[
+{% if wdh_lcp_preload %}
+{% if '-180x180.webp' in wdh_lcp_preload %}
+<link rel="preload" as="image" href="{{ wdh_lcp_preload }}" imagesrcset="{{ wdh_lcp_preload }} 180w, {{ wdh_lcp_preload|replace({'-180x180.webp':'-320x320.webp'}) }} 320w" imagesizes="174px" fetchpriority="high" />
+{% else %}
+<link rel="preload" as="image" href="{{ wdh_lcp_preload }}" fetchpriority="high" />
+{% endif %}
+{% endif %}
+]]></add>
+    </operation>
+  </file>
+</modification>

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<modification>
+  <name>WDH Product Mobile Layout</name>
+  <code>wdh_product_mobile_layout</code>
+  <version>1.0</version>
+  <author>WDH</author>
+  <file path="catalog/controller/product/product.php">
+    <operation>
+      <search><![CDATA[$data['heading_title'] = $product_info['name'];]]></search>
+      <add position="before"><![CDATA[
+            $data['wdh_mobile'] = false;
+
+            if (!class_exists('Mobile_Detect')) {
+                require_once(DIR_SYSTEM . 'Mobile_Detect.php');
+            }
+
+            $wdh_detect = new Mobile_Detect;
+
+            if (!$wdh_detect->isTablet() && $wdh_detect->isMobile()) {
+                $data['wdh_mobile'] = true;
+            }
+      ]]></add>
+    </operation>
+  </file>
+</modification>

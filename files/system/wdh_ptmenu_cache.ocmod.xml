@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<modification>
+    <code>wdh_ptmenu_cache</code>
+    <name>WDH Ptmenu Items Cache</name>
+    <version>1.0</version>
+    <author>WheelDecalsHub Optimization</author>
+    <file path="catalog/controller/extension/module/ptmenu.php">
+        <operation>
+            <search><![CDATA[$data['menu_type'] = $menu['menu_type'];]]></search>
+            <add position="after"><![CDATA[
+        $wdh_ptmenu_cache_key = 'wdh.ptmenu.items.' . (int)$this->config->get('config_store_id') . '.' . (int)$menu_id . '.' . $this->session->data['language'] . '.' . md5(serialize($setting));
+        $wdh_ptmenu_cache_data = $this->cache->get($wdh_ptmenu_cache_key);
+
+        if ($wdh_ptmenu_cache_data !== false && is_array($wdh_ptmenu_cache_data) && isset($wdh_ptmenu_cache_data['items'])) {
+            $data['items'] = $wdh_ptmenu_cache_data['items'];
+            $data['warning'] = !empty($wdh_ptmenu_cache_data['warning']);
+        } else {
+            ]]></add>
+        </operation>
+        <operation>
+            <search><![CDATA[$data['menu_setting'] = array(]]></search>
+            <add position="before"><![CDATA[
+            $this->cache->set($wdh_ptmenu_cache_key, array(
+                'items' => $data['items'],
+                'warning' => $data['warning']
+            ));
+        }
+
+        ]]></add>
+        </operation>
+    </file>
+</modification>

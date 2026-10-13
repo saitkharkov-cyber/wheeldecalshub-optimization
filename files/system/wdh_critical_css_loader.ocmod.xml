@@ -12,6 +12,7 @@
         $wdh_route = isset($this->request->get['route']) ? $this->request->get['route'] : 'common/home';
         $data['wdh_critical_mobile_css'] = WdhCriticalCss::buildMobile($wdh_route);
         $data['wdh_critical_desktop_css'] = WdhCriticalCss::buildDesktop($wdh_route);
+        $data['wdh_deferred_css_loader_js'] = WdhCriticalCss::deferredCssLoaderJs();
 ]]></add>
     </operation>
   </file>

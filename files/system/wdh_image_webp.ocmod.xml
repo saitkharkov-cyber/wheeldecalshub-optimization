@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<modification>
+  <name>WDH WebP Image Support</name>
+  <code>wdh_image_webp</code>
+  <version>1.0</version>
+  <author>WheelDecalsHub Optimization</author>
+
+  <file path="system/library/image.php">
+    <operation>
+      <search><![CDATA[} elseif ($extension == 'gif') {]]></search>
+      <add position="before"><![CDATA[} elseif ($extension == 'webp') {
+imagewebp($this->image, $file, $quality);
+]]></add>
+    </operation>
+  </file>
+
+  <file path="catalog/model/tool/image.php">
+    <operation>
+      <search><![CDATA[public function resize($filename, $width, $height) {]]></search>
+      <add position="before"><![CDATA[
+public function resizeWebp($filename, $width, $height, $quality = 74) {
+if (!function_exists('imagewebp')) {
+return $this->resize($filename, $width, $height);
+}
+
+if (!is_file(DIR_IMAGE . $filename) || substr(str_replace('\\', '/', realpath(DIR_IMAGE . $filename)), 0, strlen(DIR_IMAGE)) != str_replace('\\', '/', DIR_IMAGE)) {
+return;
+}
+
+$image_old = $filename;
+$image_new = 'cache/' . utf8_substr($filename, 0, utf8_strrpos($filename, '.')) . '-' . (int)$width . 'x' . (int)$height . '.webp';
+
+if (!is_file(DIR_IMAGE . $image_new) || filemtime(DIR_IMAGE . $image_old) > filemtime(DIR_IMAGE . $image_new)) {
+list($width_orig, $height_orig, $image_type) = getimagesize(DIR_IMAGE . $image_old);
+
+if (!in_array($image_type, array(IMAGETYPE_PNG, IMAGETYPE_JPEG, IMAGETYPE_GIF))) {
+return $this->resize($filename, $width, $height);
+}
+
+$path = '';
+$directories = explode('/', dirname($image_new));
+
+foreach ($directories as $directory) {
+$path = $path . '/' . $directory;
+
+if (!is_dir(DIR_IMAGE . $path)) {
+@mkdir(DIR_IMAGE . $path, 0777);
+}
+}
+
+$image = new Image(DIR_IMAGE . $image_old);
+
+if ($width_orig != $width || $height_orig != $height) {
+$image->resize($width, $height);
+}
+
+$image->save(DIR_IMAGE . $image_new, $quality);
+}
+
+$image_new = str_replace(' ', '%20', $image_new);
+
+if ($this->request->server['HTTPS']) {
+return $this->config->get('config_ssl') . 'image/' . $image_new;
+} else {
+return $this->config->get('config_url') . 'image/' . $image_new;
+}
+}
+
+]]></add>
+    </operation>
+  </file>
+</modification>

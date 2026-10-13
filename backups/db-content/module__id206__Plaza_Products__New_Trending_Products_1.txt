@@ -1,0 +1,50 @@
+Module ID: 206
+Type: ptproducts
+Name: New Trending Products 1
+
+Base admin configuration:
+Status: Enabled
+Subtitle: Top New on This Week
+Title: New Arrivals Products
+Module Type: Single
+Show Module Description: Disabled
+
+Slider:
+Width: 370
+Height: 370
+Auto: Disabled
+Items: 6 / 5 / 4 / 3 / 2 / 2
+Rows: 1 / 1 / 1 / 1 / 1 / 1
+Limit: 10
+Speed: 500
+Navigation: Enabled
+Pagination: Disabled
+
+Catalog:
+Show Price: Enabled
+Show Cart: Enabled
+Show Wish List: Enabled
+Show Compare: Enabled
+Countdown: Disabled
+Quick View: Enabled
+Hover Image: Enabled
+Swatches Image: Disabled
+Description: Disabled
+Product Label: Enabled
+
+Products:
+Collection: Special Types
+Products Type: Latest
+
+Image:
+Width: 100
+Height: 100
+
+Layout:
+Layout: Slider
+Product Layout: Grid
+Custom Class: empty
+
+IMPORTANT:
+Mobile performance behavior is additionally modified by WDH custom code/OCMOD.
+Do not rely on these admin settings alone to reconstruct mobile homepage behavior.

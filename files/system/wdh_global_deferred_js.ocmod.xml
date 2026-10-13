@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<modification>
+  <name>WDH Global Deferred JS</name>
+  <code>wdh_global_deferred_js</code>
+  <version>1.0</version>
+  <author>WDH</author>
+
+  <file path="catalog/controller/extension/module/ptmenu.php">
+    <operation>
+      <search><![CDATA[$this->document->addScript('catalog/view/javascript/plaza/ultimatemenu/menu.js');]]></search>
+      <add position="replace"><![CDATA[/* WDH: menu.js loaded lazily by global deferred JS OCMOD */]]></add>
+    </operation>
+  </file>
+</modification>

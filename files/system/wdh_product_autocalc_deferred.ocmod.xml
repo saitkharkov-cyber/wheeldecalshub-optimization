@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<modification>
+  <name>WDH Product Autocalc Deferred</name>
+  <code>wdh_product_autocalc_deferred</code>
+  <version>1.0</version>
+  <author>WDH</author>
+  <file path="catalog/view/theme/tt_uren1/template/product/product.twig">
+    <operation error="skip">
+      <search><![CDATA[$('#product input[type="checkbox"],#product input[type="radio"],#product select').each(function(){if($(this).data('autocalc'))return;$(this).data('autocalc',1).on('change',function(){recalculateprice();});});]]></search>
+      <add position="before" offset="1"><![CDATA[wdhWhenJQuery(function($){
+]]></add>
+    </operation>
+    <operation error="skip">
+      <search><![CDATA[last_name='';$('#product input[type="radio"][name^="option"]').each(function(){if($(this).attr('name')!=last_name)$(this).prop('checked',true);last_name=$(this).attr('name');});]]></search>
+      <add position="after" offset="4"><![CDATA[
+});]]></add>
+    </operation>
+  </file>
+</modification>
+
+
+

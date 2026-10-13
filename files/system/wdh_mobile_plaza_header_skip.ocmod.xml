@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<modification>
+    <code>wdh_mobile_plaza_header_skip</code>
+    <name>WDH Skip Unused Plaza Header On Mobile</name>
+    <version>1.1</version>
+    <author>WheelDecalsHub Optimization</author>
+    <file path="catalog/controller/plaza/header.php">
+        <operation>
+            <search><![CDATA[public function index() {]]></search>
+            <add position="after"><![CDATA[
+        if (!class_exists('Mobile_Detect')) {
+            require_once(DIR_SYSTEM . 'Mobile_Detect.php');
+        }
+
+        $wdh_mobile_detect = new Mobile_Detect;
+
+        if (!$wdh_mobile_detect->isTablet() && $wdh_mobile_detect->isMobile()) {
+            return '';
+        }
+            ]]></add>
+        </operation>
+    </file>
+    <file path="catalog/controller/common/header.php">
+        <operation>
+            <search><![CDATA[$data['position1'] = $this->load->controller('common/position1');]]></search>
+            <add position="before"><![CDATA[
+        if (!class_exists('Mobile_Detect')) {
+            require_once(DIR_SYSTEM . 'Mobile_Detect.php');
+        }
+        $wdh_mobile_detect = new Mobile_Detect;
+        $wdh_is_mobile = (!$wdh_mobile_detect->isTablet() && $wdh_mobile_detect->isMobile());
+
+        if (!$wdh_is_mobile) {
+            ]]></add>
+        </operation>
+        <operation>
+            <search><![CDATA[$data['position10'] = $this->load->controller('common/position10');]]></search>
+            <add position="after"><![CDATA[
+        } else {
+            $data['position3'] = $this->load->controller('common/position3');
+        }
+            ]]></add>
+        </operation>
+    </file>
+</modification>
