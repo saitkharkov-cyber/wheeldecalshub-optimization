@@ -973,7 +973,7 @@ rootMargin: 200px 0px
 
 Ця зміна зменшила desktop TBT у PSI приблизно з `320–340 ms` до близько `220 ms`, не погіршивши LCP/CLS.
 
-##### Ajax register / reCAPTCHA — lazy лише для desktop homepage
+##### Ajax register / reCAPTCHA — lazy на homepage без PHP-залежності від device detection
 
 Plaza-модуль `ptajaxlogin` безумовно будує приховану форму реєстрації при initial render:
 
@@ -986,24 +986,26 @@ catalog/controller/extension/module/ptajaxlogin.php
 
 PSI показав, що до виправлення **7 із 8 long tasks** походили від Google reCAPTCHA (`recaptcha__*.js`), тоді як власний Swiper був лише однією з восьми задач.
 
-Рішення навмисно вузьке:
+Фінальне рішення навмисно вузьке і не додає device-detection у captcha-controller:
 
-1. У `catalog/controller/extension/captcha/google.php` передається прапорець `wdh_desktop_home`.
-2. Визначення пристрою використовує наявний `Mobile_Detect`; tablet залишається в desktop-поведінці.
-3. Для homepage без явного `?route=` fallback маршруту має бути `common/home`, інакше прапорець помилково буде false на `/`.
-4. `system/wdh_product_recaptcha_lazy.ocmod.xml` зберігає стару product-логіку і має окрему гілку `wdh_desktop_home`.
-5. На desktop homepage Google reCAPTCHA API не завантажується під час initial load; він додається лише після кліку `#pt-register-link`.
-6. На mobile homepage поведінка captcha не змінюється.
-7. Інші сторінки використовують стандартний fallback і не змінюються.
+1. `catalog/controller/extension/captcha/google.php` лише передає `route`. Для homepage без явного `?route=` fallback маршруту має бути `common/home`, тому що `/` часто не містить route у query string.
+2. **Не використовувати `Mobile_Detect` усередині `ControllerExtensionCaptchaGoogle`.** Така спроба спричинила production fatal на `/information-contact`, де клас не був завантажений у цьому контексті.
+3. `system/wdh_product_recaptcha_lazy.ocmod.xml` зберігає product-логіку і має окрему гілку `route == 'common/home'`.
+4. На homepage inline-скрипт сам перевіряє `body.mobile-layout`: mobile зберігає поточне captcha-поведінку, desktop прив'язує `loadRecaptcha()` до кліку `#pt-register-link`.
+5. Contact, checkout та інші сторінки проходять через стандартний fallback і не залежать від homepage-оптимізації.
+6. На desktop homepage Google reCAPTCHA API не завантажується під час initial load; він додається лише після кліку `Register`.
 
 Функціональна перевірка:
 
 ```text
-до кліку Register: resource list recaptcha/gstatic = []
+desktop homepage до кліку Register: resource list recaptcha/gstatic = []
 після кліку Register: Google reCAPTCHA resources завантажуються, captcha і форма працюють
+/information-contact: сторінка і captcha працюють без fatal
 ```
 
-Після цього TBT у репрезентативному desktop PSI знизився до `50 ms`, а reCAPTCHA повністю зникла зі списку initial long tasks.
+Після фінального виправлення контрольний desktop PSI головної: `Performance 96`; reCAPTCHA відсутня в initial third-party/main-thread path. Попередній репрезентативний запуск на тому самому desktop-контурі давав `Performance 97 / LCP 1.1 s / TBT 50 ms / CLS 0.001`.
+
+Важливий операційний висновок: якщо OCMOD змінює Twig-шаблон, одного OCMOD Refresh може бути недостатньо для фактичного runtime. Після такого OCMOD обов'язково виконувати **Theme Refresh / очищення Twig cache**, потім hard reload і перевірку фактичного HTML/resources. Інакше браузер може продовжувати отримувати стару скомпільовану версію Twig, що дає хибне враження, ніби OCMOD не спрацював.
 
 ##### Виняток для jQuery на головній сторінці
 
@@ -1092,7 +1094,9 @@ Bestin має окрему ранню схему з base64; її не потрі
 
 ```text
 зміна вихідного коду / БД
-→ потрібний OCMOD Refresh або Theme Refresh
+→ потрібний OCMOD Refresh
+→ якщо OCMOD змінює Twig: Theme Refresh / очищення Twig cache
+→ hard reload
 → згенерований стан
 → фактичний HTML
 → Console
